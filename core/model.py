@@ -20,9 +20,19 @@ class Room:
             raise TypeError(shape)
         self._name = name
         self._color = color or QColor('white')
+        self._path_cached = None
+        self._dirty = True
 
     def get_path(self):
-        return self._shape.to_qpath()
+        if self._path_cached:
+            if self._dirty:
+                self._dirty = False
+                return self._shape.to_qpath(self._path_cached)
+            else:
+                return self._path_cached
+        else:
+            self._path_cached = self._shape.to_qpath()
+            return self._path_cached
 
 class Door:
     pass
@@ -32,12 +42,15 @@ class Item:
 
 class Floor:
     def __init__(self, rooms, doors, items):
-        self._rooms = rooms
-        self._doors = doors
-        self._items = items
+        self._rooms = list(rooms)
+        self._doors = list(doors)
+        self._items = list(items)
 
     def rooms(self):
         yield from self._rooms
+
+    def add_room(self, room):
+        self._rooms.append(room)
 
 class Map:
     def __init__(self, floors, **settings):

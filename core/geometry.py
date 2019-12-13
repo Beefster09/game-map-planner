@@ -42,8 +42,11 @@ class Path:
     __or__ = union
     __sub__ = difference
 
-    def to_qpath(self):
-        path = QPainterPath()
+    def to_qpath(self, path=None):
+        if path is None:
+            path = QPainterPath()
+        else:
+            path.clear()
         for subpath in self.subpaths:
             path.moveTo(*subpath[0])
             for point in subpath[1:]:

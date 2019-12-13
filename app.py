@@ -44,7 +44,7 @@ class MapDesigner(QMainWindow):
                             (225, 275),
                         ]
                     ])],
-                    None, None
+                    [], []
                 )
             ])
         )
