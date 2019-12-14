@@ -88,7 +88,7 @@ class Room:
 
     @shape.setter
     def shape(self, value):
-        self.update('shape', value)
+        self.update(shape=value)
 
     @property
     def name(self):
@@ -96,7 +96,7 @@ class Room:
 
     @name.setter
     def name(self, value):
-        self.update('name', value)
+        self.update(name=value)
 
     @property
     def color(self):
@@ -104,7 +104,7 @@ class Room:
 
     @color.setter
     def color(self, value):
-        self.update('color', value)
+        self.update(color=value)
 
 
 class Door:
@@ -124,6 +124,11 @@ class Floor:
 
     def add_room(self, room):
         self._rooms.append(room)
+
+    def erase_rooms(self, shape):
+        for room in self._rooms:
+            if room.shape.intersects(shape):
+                room.shape -= shape
 
 class Map:
     def __init__(self, floors, **settings):

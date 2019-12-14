@@ -2,11 +2,11 @@
 
 import sys
 
-from PySide2.QtCore import Slot, qApp
+from PySide2.QtCore import Slot, qApp, Qt
 from PySide2.QtGui import QKeySequence
-from PySide2.QtWidgets import QMainWindow, QAction, QApplication, QWidget
+from PySide2.QtWidgets import QMainWindow, QAction, QApplication
 
-from widgets import editor
+from widgets import editor, tools
 from core.model import Map, Floor, Room
 
 class MapDesigner(QMainWindow):
@@ -25,23 +25,25 @@ class MapDesigner(QMainWindow):
 
         self.file_menu.addAction(exit_action)
 
+        self.addToolBar(tools.EditingTools())
+
         self.editor = editor.MapDisplay(
             Map([
                 Floor(
                     [Room([
                         [
-                            (100, 100),
-                            (100, 400),
-                            (300, 400),
-                            (300, 500),
-                            (400, 500),
-                            (400, 100),
+                            (5, 5),
+                            (5, 20),
+                            (15, 20),
+                            (15, 25),
+                            (20, 25),
+                            (20, 5),
                         ],
                         [
-                            (225, 225),
-                            (275, 225),
-                            (275, 275),
-                            (225, 275),
+                            (10, 10),
+                            (12, 10),
+                            (12, 12),
+                            (10, 12),
                         ]
                     ])]
                 )

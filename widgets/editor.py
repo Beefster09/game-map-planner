@@ -2,7 +2,7 @@
 """
 
 from PySide2.QtGui import *
-from PySide2.QtWidgets import QWidget
+from PySide2.QtWidgets import QFrame
 
 from widgets.tools import RectTool
 
@@ -28,19 +28,22 @@ class Painter:
         self.painter.end()
         return False
 
-class MapDisplay(QWidget):
+class MapDisplay(QFrame):
     def __init__(self, model):
         super().__init__()
-        self.world_to_screen = QTransform().translate(-90, -90).scale(2, 2)
+        self.setFrameStyle(QFrame.Panel | QFrame.Sunken)
+        self.setLineWidth(3)
+
+        self.world_to_screen = QTransform().scale(20, 20)
         self.screen_to_world, _ = self.world_to_screen.inverted()
         self.model = model
         self.current_floor = 0
 
-        self.current_tool = 'rect'
+        self.current_tool = RectTool
         self.edit_state = None
         self.pan_anchor = None
 
-        self.grid_size = 20, 20
+        self.grid_size = 1.0, 1.0
 
     def pan(self, x, y):
         self.world_to_screen.translate(x, y)
@@ -64,31 +67,37 @@ class MapDisplay(QWidget):
         with Painter(self, self.world_to_screen) as p:
             for room in self.model[self.current_floor].rooms():
                 # TODO? Culling
-                p.setPen(QPen(BLACK_BRUSH, 4))
+                p.setPen(QPen(BLACK_BRUSH, self.screen_to_world.m11() * 4))
                 p.setBrush(WHITE_BRUSH)
                 p.drawPath(room.get_path())
 
             # Draw grid lines
             visible = self.screen_to_world.mapRect(event.rect())
-            top = visible.top()
-            bottom = visible.bottom()
-            left = visible.left()
-            right = visible.right()
+            top = int(visible.top() - 1)
+            bottom = int(visible.bottom() + 1)
+            left = int(visible.left() - 1)
+            right = int(visible.right() + 1)
 
             grid_x, grid_y = self.grid_size
 
             # Vertical Lines
             p.setPen(QPen(GRID_BRUSH, self.screen_to_world.m11() * 2))
-            for x in range((left // grid_x) * grid_x, right, grid_x):
+            for x in range(left, right):
                 p.drawLine(x, top, x, bottom)
 
             # Horizontal Lines
             p.setPen(QPen(GRID_BRUSH, self.screen_to_world.m22() * 2))
-            for y in range((top // grid_y) * grid_y, bottom, grid_y):
+            for y in range(top, bottom):
                 p.drawLine(left, y, right, y)
 
             if self.edit_state:
-                p.strokePath(self.edit_state.draw_hint(), QPen(QColor('gray'), 1))
+                self.edit_state.draw_hint(
+                    p,
+                    (self.screen_to_world.m11(), self.screen_to_world.m22())
+                )
+
+            p.setWorldTransform(QTransform())
+            self.drawFrame(p)
 
     def mousePressEvent(self, event):
         button = event.buttons()
@@ -98,7 +107,7 @@ class MapDisplay(QWidget):
             if button & LeftAndRightButtons == LeftAndRightButtons:
                 self.edit_state = None
             else:
-                self.edit_state = RectTool(
+                self.edit_state = self.current_tool(
                     self.model[self.current_floor],
                     self.screen_to_world.map(event.localPos()),
                     button == Qt.RightButton,
