@@ -8,6 +8,7 @@ from widgets.tools import RectTool
 
 BLACK_BRUSH = QBrush(QColor('black'))
 WHITE_BRUSH = QBrush(QColor('white'))
+GRID_BRUSH = QBrush(QColor(120, 185, 200, 100))
 
 LeftAndRightButtons = Qt.LeftButton | Qt.RightButton
 
@@ -48,7 +49,9 @@ class MapDisplay(QWidget):
 
     def zoom(self, factor, center=None):
         if center is None:
-            cx, cy = self.screen_to_world.map(self.visibleRegion().boundingRect().size() / 2).toTuple()
+            cx, cy = self.screen_to_world.map(
+                self.visibleRegion().boundingRect().size() / 2
+            ).toTuple()
         else:
             cx, cy = self.screen_to_world.map(center).toTuple()
         self.world_to_screen.translate(cx, cy)
@@ -64,6 +67,25 @@ class MapDisplay(QWidget):
                 p.setPen(QPen(BLACK_BRUSH, 4))
                 p.setBrush(WHITE_BRUSH)
                 p.drawPath(room.get_path())
+
+            # Draw grid lines
+            visible = self.screen_to_world.mapRect(event.rect())
+            top = visible.top()
+            bottom = visible.bottom()
+            left = visible.left()
+            right = visible.right()
+
+            grid_x, grid_y = self.grid_size
+
+            # Vertical Lines
+            p.setPen(QPen(GRID_BRUSH, self.screen_to_world.m11() * 2))
+            for x in range((left // grid_x) * grid_x, right, grid_x):
+                p.drawLine(x, top, x, bottom)
+
+            # Horizontal Lines
+            p.setPen(QPen(GRID_BRUSH, self.screen_to_world.m22() * 2))
+            for y in range((top // grid_y) * grid_y, bottom, grid_y):
+                p.drawLine(left, y, right, y)
 
             if self.edit_state:
                 p.strokePath(self.edit_state.draw_hint(), QPen(QColor('gray'), 1))
