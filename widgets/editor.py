@@ -1,10 +1,13 @@
 """Defines the core editor frame
 """
 
-from PySide2.QtGui import *
-from PySide2.QtWidgets import QFrame, QApplication
+import os.path
+import json
 
-from widgets.tools import RectTool
+from PySide2.QtGui import *
+from PySide2.QtWidgets import QFrame, QApplication, QFileDialog
+
+from core.model import Map
 
 BLACK_BRUSH = QBrush(QColor('black'))
 WHITE_BRUSH = QBrush(QColor('white'))
@@ -29,7 +32,7 @@ class Painter:
         return False
 
 class MapDisplay(QFrame):
-    def __init__(self, model):
+    def __init__(self):
         super().__init__()
         self.setFrameStyle(QFrame.Panel | QFrame.Sunken)
         self.setLineWidth(3)
@@ -39,14 +42,16 @@ class MapDisplay(QFrame):
 
         self.world_to_screen = QTransform().scale(20, 20)
         self.screen_to_world, _ = self.world_to_screen.inverted()
-        self.model = model
+        self.model = Map()
         self.current_floor = 0
 
-        self.current_tool = RectTool
+        self.current_tool = None
         self.edit_state = None
         self.pan_anchor = None
 
         self.grid_size = 1.0, 1.0
+
+        self.filename = None
 
     def pan(self, x, y):
         self.world_to_screen.translate(x, y)
@@ -166,3 +171,43 @@ class MapDisplay(QFrame):
         sign = -1 if event.inverted() else 1
         zoom_pow = sign * event.angleDelta().y() / (8 * 180)
         self.zoom(2.0 ** zoom_pow, (event.pos()))
+
+    # -- misc. signal receivers --
+
+    def set_tool(self, button):
+        self.edit_state = None
+        self.current_tool = button.tool
+
+    def save_as(self):
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save map as...",
+            os.path.expanduser('~'),
+            "Maps (*.gmap)",
+        )
+        self._save_model(filename)
+
+    def save(self):
+        if self.filename is None:
+            self.save_as()
+        else:
+            self._save_model()
+
+    def _save_model(self, file=None):
+        if file is None:
+            file = self.filename
+        if file is None:
+            raise Exception(f"Filename {file} does not exist!")
+        self.model.save(file)
+        self.filename = file
+
+    def open(self):
+        filename, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open map...",
+            os.path.expanduser('~'),
+            "Maps (*.gmap)",
+        )
+        self.filename = filename
+        self.model = Map.load(filename)
+        self.update()

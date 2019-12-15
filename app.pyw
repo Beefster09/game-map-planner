@@ -15,41 +15,35 @@ class MapDesigner(QMainWindow):
 
         self.setWindowTitle("Map Designer Tool")
 
+        self.editor = editor.MapDisplay()
+        self.setCentralWidget(self.editor)
+        self.addToolBar(tools.EditingTools(self.editor))
+
         self.menu = self.menuBar()
+
+        # File Menu
         self.file_menu = self.menu.addMenu("File")
 
-        # Exit QAction
+        open_action = QAction("Open...", self)
+        open_action.setShortcut(QKeySequence.Open)
+        open_action.triggered.connect(self.editor.open)
+        self.file_menu.addAction(open_action)
+
+        save_action = QAction("Save", self)
+        save_action.setShortcut(QKeySequence.Save)
+        save_action.triggered.connect(self.editor.save)
+        self.file_menu.addAction(save_action)
+
+        save_as_action = QAction("Save As...", self)
+        save_as_action.setShortcut(QKeySequence("Ctrl+Shift+S"))
+        save_as_action.triggered.connect(self.editor.save_as)
+        self.file_menu.addAction(save_as_action)
+
         exit_action = QAction("Exit", self)
         exit_action.setShortcut(QKeySequence.Quit)
         exit_action.triggered.connect(self.close)
-
         self.file_menu.addAction(exit_action)
 
-        self.editor = editor.MapDisplay(
-            Map([
-                Floor(
-                    [Room([
-                        [
-                            (5, 5),
-                            (5, 20),
-                            (15, 20),
-                            (15, 25),
-                            (20, 25),
-                            (20, 5),
-                        ],
-                        [
-                            (10, 10),
-                            (12, 10),
-                            (12, 12),
-                            (10, 12),
-                        ]
-                    ])]
-                )
-            ])
-        )
-        self.setCentralWidget(self.editor)
-
-        self.addToolBar(tools.EditingTools(self.editor))
 
         # Status Bar
         self.status = self.statusBar()

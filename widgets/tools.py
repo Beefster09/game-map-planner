@@ -20,26 +20,15 @@ draw_hint(painter, pixel_size) - draw current state hint
 from math import floor, ceil
 
 from PySide2.QtCore import Qt
-from PySide2.QtGui import QPen, QBrush, QColor
-from PySide2.QtWidgets import QToolBar
+from PySide2.QtGui import QPen, QBrush, QColor, QKeySequence
+from PySide2.QtWidgets import QToolBar, QToolButton, QButtonGroup
 
 from core.geometry import Path, Point
 from core.model import Room
 
-class RectTool:
-    def __init__(self, model, position, rightclick, modifiers):
-        self.model = model
-        self.p1 = self.p2 = Point(*position.toTuple())
-        self.erase = rightclick
-        self.target_room = model.room_at(self.p1)
-        self.update_modifiers(modifiers)
 
-    def update(self, position, modifiers = 0):
-        self.p2 = Point(*position.toTuple())
-        self.update_modifiers(modifiers)
-
+class _ShapeTool:
     def commit(self, position, modifiers = 0):
-        self.p2 = Point(*position.toTuple())
         self.update_modifiers(modifiers)
         if self.erase:
             self.model.erase_rooms(self.shape)
@@ -82,6 +71,26 @@ class RectTool:
         else:
             return Qt.darkGray
 
+
+class RectTool(_ShapeTool):
+    shortcut = QKeySequence(Qt.Key_R)
+    label = 'Rectangle'
+
+    def __init__(self, model, position, rightclick, modifiers):
+        self.model = model
+        self.p1 = self.p2 = Point(*position.toTuple())
+        self.erase = rightclick
+        self.target_room = model.room_at(self.p1)
+        self.update_modifiers(modifiers)
+
+    def update(self, position, modifiers = 0):
+        self.p2 = Point(*position.toTuple())
+        self.update_modifiers(modifiers)
+
+    def commit(self, position, modifiers = 0):
+        self.p2 = Point(*position.toTuple())
+        super().commit(position, modifiers)
+
     @property
     def shape(self):
         p1, p2 = self.p1, self.p2
@@ -110,7 +119,57 @@ class RectTool:
                     Point(floor(p2.x), floor(p2.y))
                 )
 
+
+class CorridorTool(_ShapeTool):
+    shortcut = QKeySequence(Qt.Key_C)
+    label = 'Corridor'
+
+    def __init__(self, model, position, rightclick, modifiers):
+        self.model = model
+        self.p1 = self.p2 = Point(*position.toTuple())
+        self.target_room = model.room_at(self.p1)
+        self.erase = rightclick
+        self.update_modifiers(modifiers)
+
+    def update(self, position, modifiers = 0):
+        self.p2 = Point(*position.toTuple())
+        self.update_modifiers(modifiers)
+
+    def commit(self, position, modifiers = 0):
+        self.p2 = Point(*position.toTuple())
+        super().commit(position, modifiers)
+
+
+# === ToolBar ===
+
 class EditingTools(QToolBar):
+    EDIT_TOOLS = [
+        RectTool,
+        CorridorTool,
+    ]
+
     def __init__(self, receiver):
         super().__init__()
-        # self.addAction()
+
+        self.setMovable(False)
+
+        self.edit_group = QButtonGroup()
+        self.edit_group.setExclusive(True)
+        self.tools = []
+
+        for tool_class in self.EDIT_TOOLS:
+            tool = QToolButton()
+            if hasattr(tool_class, 'icon'):
+                tool.setIcon(tool_class.icon)
+            else:
+                tool.setText(tool_class.label)
+            if hasattr(tool_class, 'shortcut'):
+                tool.setShortcut(tool_class.shortcut)
+            tool.setCheckable(True)
+            tool.tool = tool_class
+            self.edit_group.addButton(tool)
+            self.addWidget(tool)
+            self.tools.append(tool)
+
+        self.edit_group.buttonClicked.connect(receiver.set_tool)
+        self.tools[0].click()

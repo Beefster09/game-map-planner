@@ -192,3 +192,10 @@ class Path:
             raise TypeError(
                 f"'{cls.__name__}.from_rect' expects 2 or 4 arguments, but {len(args)} were given."
             )
+
+    def to_json(self):
+        return [[*subpath] for subpath in self._subpaths]
+
+    @classmethod
+    def from_json(cls, data):
+        return cls(*data)

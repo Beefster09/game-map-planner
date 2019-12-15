@@ -99,6 +99,26 @@ class Room:
     def id(self):
         return self._id
 
+    # -- conversions --
+
+    def to_json(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'shape': self.shape.to_json(),
+            'color': self.color.name(),
+        }
+
+    @classmethod
+    def from_json(cls, data):
+        room = cls(
+            Path.from_json(data['shape']),
+            data['name'],
+            QColor(data['color']),
+        )
+        room._id = data['id']
+        return room
+
 
 class Door:
     pass
@@ -107,7 +127,8 @@ class Item:
     pass
 
 class Floor:
-    def __init__(self, rooms=(), doors=(), items=()):
+    def __init__(self, rooms=(), doors=(), items=(), name=None):
+        self.name = name
         self._rooms = list(rooms)
         self._doors = list(doors)
         self._items = list(items)
@@ -146,15 +167,69 @@ class Floor:
         self._remove_shapeless_rooms()
 
     def combine_rooms(self, shape):
-        pass
+        to_combine = [
+            room for room in self._rooms
+            if room.shape.intersects(shape)
+        ]
+        if to_combine:
+            for room in to_combine:
+                shape |= room.shape
+            to_combine[0].shape = shape
+            for room in to_combine[1:]:
+                room.shape = None
+            self._remove_shapeless_rooms()
+        else:
+            self._rooms.append(Room(shape))
 
     def _remove_shapeless_rooms(self):
         self._rooms = [room for room in self._rooms if room.shape is not None]
         # TODO: rooms with two parts should be split into two rooms
 
+    def to_json(self):
+        return {
+            'name': self.name,
+            'rooms': [room.to_json() for room in self._rooms],
+            'doors': self._doors,
+            'items': self._items,
+        }
+
+    @classmethod
+    def from_json(cls, data):
+        return cls(
+            [Room.from_json(r) for r in data['rooms']],
+            data['doors'],
+            data['items'],
+            name=data['name']
+        )
+
 class Map:
-    def __init__(self, floors, **settings):
-        self._floors = floors
+    def __init__(self, floors=None, **settings):
+        if floors:
+            self._floors = list(floors)
+        else:
+            self._floors = [Floor()]
+        self._settings = settings
 
     def __getitem__(self, index):
         return self._floors[index]
+
+    def save(self, file):
+        with open(file, 'w') as f:  # TODO: Should probably be atomic
+            json.dump(self.to_json(), f, indent=2)
+
+    @classmethod
+    def load(cls, file):
+        with open(file, 'r') as f:
+            return cls.from_json(json.load(f))
+
+    def to_json(self):
+        return {
+            'floors': [floor.to_json() for floor in self._floors],
+            **self._settings
+        }
+
+    @classmethod
+    def from_json(cls, data):
+        data_copy = dict(data)
+        floors = [Floor.from_json(f) for f in data_copy.pop('floors')]
+        return cls(floors, **data_copy)
