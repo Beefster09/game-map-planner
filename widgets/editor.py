@@ -74,9 +74,9 @@ class MapDisplay(QFrame):
             # Draw grid lines
             visible = self.screen_to_world.mapRect(event.rect())
             top = int(visible.top() - 1)
-            bottom = int(visible.bottom() + 1)
+            bottom = int(visible.bottom() + 2)
             left = int(visible.left() - 1)
-            right = int(visible.right() + 1)
+            right = int(visible.right() + 2)
 
             grid_x, grid_y = self.grid_size
 

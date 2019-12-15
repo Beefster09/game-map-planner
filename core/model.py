@@ -130,6 +130,10 @@ class Floor:
             if room.shape.intersects(shape):
                 room.shape -= shape
 
+        # Delete rooms with no geometry
+        self._rooms = [room for room in self._rooms if room.shape is not None]
+        # TODO: rooms with two parts should be split into two rooms
+
 class Map:
     def __init__(self, floors, **settings):
         self._floors = floors
