@@ -2,7 +2,7 @@
 """
 
 from PySide2.QtGui import *
-from PySide2.QtWidgets import QFrame
+from PySide2.QtWidgets import QFrame, QApplication
 
 from widgets.tools import RectTool
 
@@ -33,6 +33,9 @@ class MapDisplay(QFrame):
         super().__init__()
         self.setFrameStyle(QFrame.Panel | QFrame.Sunken)
         self.setLineWidth(3)
+
+        self.setContextMenuPolicy(Qt.PreventContextMenu)
+        self.setFocusPolicy(Qt.ClickFocus)
 
         self.world_to_screen = QTransform().scale(20, 20)
         self.screen_to_world, _ = self.world_to_screen.inverted()
@@ -111,7 +114,7 @@ class MapDisplay(QFrame):
                     self.model[self.current_floor],
                     self.screen_to_world.map(event.localPos()),
                     button == Qt.RightButton,
-                    event.flags()
+                    QApplication.keyboardModifiers()
                 )
         else:
             return  # early return to avoid update/repaint
@@ -127,7 +130,8 @@ class MapDisplay(QFrame):
 
         if self.edit_state:
             self.edit_state.update(
-                self.screen_to_world.map(event.localPos())
+                self.screen_to_world.map(event.localPos()),
+                QApplication.keyboardModifiers()
             )
             self.update()
 
@@ -138,10 +142,25 @@ class MapDisplay(QFrame):
 
         if self.edit_state:
             self.edit_state.commit(
-                self.screen_to_world.map(event.localPos())
+                self.screen_to_world.map(event.localPos()),
+                QApplication.keyboardModifiers()
             )
             self.edit_state = None
             self.update()
+
+    def keyPressEvent(self, event):
+        if self.edit_state and event.key() in (Qt.Key_Shift, Qt.Key_Control, Qt.Key_Alt):
+            self.edit_state.update_modifiers(QApplication.queryKeyboardModifiers())
+            self.update()
+        else:
+            super().keyPressEvent(event)
+
+    def keyReleaseEvent(self, event):
+        if self.edit_state and event.key() in (Qt.Key_Shift, Qt.Key_Control, Qt.Key_Alt):
+            self.edit_state.update_modifiers(QApplication.queryKeyboardModifiers())
+            self.update()
+        else:
+            super().keyReleaseEvent(event)
 
     def wheelEvent(self, event):
         sign = -1 if event.inverted() else 1

@@ -2,6 +2,7 @@
 """
 
 import json
+import uuid
 from collections import deque
 
 from PySide2.QtGui import QColor
@@ -10,6 +11,7 @@ from .geometry import Path, Point
 
 class Room:
     def __init__(self, shape, name=None, color=None):
+        self._id = str(uuid.uuid4())
         if isinstance(shape, Path):
             self._shape = shape
         elif isinstance(shape, list):
@@ -22,9 +24,7 @@ class Room:
         self._name = name
         self._color = color or QColor('white')
 
-        # For internal use (e.g. optimizations, undo/redo)
-        self._path_cached = None
-        self._dirty = True
+        # For internal use (e.g. undo/redo)
         self._undo_history = []
         self._rewind = 0
 
@@ -43,7 +43,6 @@ class Room:
         self._undo_history[self._rewind] = old_values
         for attr, value in prev_values.items():
             setattr(self, '_' + attr, value)
-        self._dirty = True
 
     def redo(self):
         if self._rewind >= 0:
@@ -57,7 +56,6 @@ class Room:
         for attr, value in next_values.items():
             setattr(self, '_' + attr, value)
         self._rewind += 1
-        self._dirty = True
 
     def update(self, **new_values):
         if self._rewind:
@@ -70,7 +68,6 @@ class Room:
         self._undo_history.append(old_values)
         for attr, value in new_values.items():
             setattr(self, '_' + attr, value)
-        self._dirty = True
 
     # -- properties --
 
@@ -98,6 +95,10 @@ class Room:
     def color(self, value):
         self.update(color=value)
 
+    @property
+    def id(self):
+        return self._id
+
 
 class Door:
     pass
@@ -114,15 +115,40 @@ class Floor:
     def rooms(self):
         yield from self._rooms
 
-    def add_room(self, room):
-        self._rooms.append(room)
+    def room_at(self, point):
+        for room in self._rooms:
+            if point in room.shape:
+                return room
+
+    def new_room(self, shape, replace=True):
+        for room in self._rooms:
+            if room.shape.intersects(shape):
+                if replace:
+                    room.shape -= shape
+                else:
+                    shape -= room.shape
+        self._rooms.append(Room(shape))
+        self._remove_shapeless_rooms()
 
     def erase_rooms(self, shape):
         for room in self._rooms:
             if room.shape.intersects(shape):
                 room.shape -= shape
 
-        # Delete rooms with no geometry
+        self._remove_shapeless_rooms()
+
+    def expand_room(self, target, shape):
+        for room in self._rooms:
+            if room is target:
+                room.shape |= shape
+            elif room.shape.intersects(shape):
+                room.shape -= shape
+        self._remove_shapeless_rooms()
+
+    def combine_rooms(self, shape):
+        pass
+
+    def _remove_shapeless_rooms(self):
         self._rooms = [room for room in self._rooms if room.shape is not None]
         # TODO: rooms with two parts should be split into two rooms
 

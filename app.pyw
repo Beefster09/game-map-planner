@@ -25,8 +25,6 @@ class MapDesigner(QMainWindow):
 
         self.file_menu.addAction(exit_action)
 
-        self.addToolBar(tools.EditingTools())
-
         self.editor = editor.MapDisplay(
             Map([
                 Floor(
@@ -51,15 +49,15 @@ class MapDesigner(QMainWindow):
         )
         self.setCentralWidget(self.editor)
 
+        self.addToolBar(tools.EditingTools(self.editor))
+
         # Status Bar
         self.status = self.statusBar()
         self.status.showMessage("Maps are pretty neat")
 
         # Window dimensions
         geometry = qApp.desktop().availableGeometry(self)
-        self.setGeometry(
-            geometry.width() * 0.15,
-            geometry.height() * 0.1,
+        self.resize(
             geometry.width() * 0.7,
             geometry.height() * 0.8
         )

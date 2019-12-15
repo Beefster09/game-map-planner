@@ -95,18 +95,6 @@ class Path:
             self._bounding_box = min(all_x), min(all_y), max(all_x), max(all_y)
         return self._bounding_box
 
-    @property
-    def qpath(self):
-        if self._qpath is None:
-            self._qpath = QPainterPath()
-            for subpath in self._subpaths:
-                self._qpath.moveTo(*subpath[0])
-                for point in subpath[1:]:
-                    self._qpath.lineTo(*point)
-                self._qpath.closeSubpath()
-        return self._qpath
-
-
     def segments(self, which=Ellipsis):
         if which is Ellipsis:
             for subpath in self._subpaths:
@@ -128,10 +116,12 @@ class Path:
         minx, miny, maxx, maxy = self.bounding_box
         if point.x < minx or point.x > maxx or point.y < miny or point.y > maxy:
             return False
-        outside = Point(minx - 1, miny + 1)
+        outside = Point(minx - 1, point.y)
         point_inside = False
         for segment in self.segments():
             p1, p2 = segment
+            if p1 == p2:
+                continue # ignore degenerate segments
             if (p2 - p1).cross(point - p2) == 0: # point is colinear with segment
                 return False
             elif _lines_intersect(outside, point, *segment):
@@ -161,6 +151,17 @@ class Path:
 
     # -- Conversions --
 
+    @property
+    def qpath(self):
+        if self._qpath is None:
+            self._qpath = QPainterPath()
+            for subpath in self._subpaths:
+                self._qpath.moveTo(*subpath[0])
+                for point in subpath[1:]:
+                    self._qpath.lineTo(*point)
+                self._qpath.closeSubpath()
+        return self._qpath
+
     @classmethod
     def from_qpath(cls, qpath):
         subpaths = []
@@ -170,12 +171,14 @@ class Path:
             if element.isLineTo():
                 cur_subpath.append(Point(element.x, element.y))
             elif element.isMoveTo():
-                if len(cur_subpath) >= 2:
-                    if cur_subpath[0] == cur_subpath[-1]:
-                        cur_subpath.pop()
+                while cur_subpath and cur_subpath[0] == cur_subpath[-1]:
+                    cur_subpath.pop()
+                if len(cur_subpath) >= 3:
                     subpaths.append(cur_subpath)
                 cur_subpath = [Point(element.x, element.y)]
-        if cur_subpath:
+        while cur_subpath and cur_subpath[0] == cur_subpath[-1]:
+            cur_subpath.pop()
+        if len(cur_subpath) >= 3:
             subpaths.append(cur_subpath)
         return cls(*subpaths) if subpaths else None
 
