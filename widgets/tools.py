@@ -46,7 +46,7 @@ class RectTool:
 
     def draw_hint(self, painter, pixel_size):
         painter.strokePath(
-            Path.from_rect(*self.quantized).to_qpath(),
+            Path.from_rect(*self.quantized).qpath,
             QPen(self.hint_color, pixel_size[0] * 2)
         )
 

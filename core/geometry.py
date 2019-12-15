@@ -76,7 +76,7 @@ def _point_of_intersection(p11, p12, p21, p22):
         return None
 
 class Path:
-    """Representation of the shape of a room. Pseudo-immutable
+    """Representation of the shape of a room. Pseudo-immutable.
     """
     def __init__(self, *subpaths):
         self._subpaths = [
@@ -84,6 +84,7 @@ class Path:
             for subpath in subpaths
         ]
         self._bounding_box = None
+        self._qpath = None
 
     # -- Geometric operations --
 
@@ -93,6 +94,18 @@ class Path:
             all_x, all_y = zip(*self.points())
             self._bounding_box = min(all_x), min(all_y), max(all_x), max(all_y)
         return self._bounding_box
+
+    @property
+    def qpath(self):
+        if self._qpath is None:
+            self._qpath = QPainterPath()
+            for subpath in self._subpaths:
+                self._qpath.moveTo(*subpath[0])
+                for point in subpath[1:]:
+                    self._qpath.lineTo(*point)
+                self._qpath.closeSubpath()
+        return self._qpath
+
 
     def segments(self, which=Ellipsis):
         if which is Ellipsis:
@@ -126,13 +139,13 @@ class Path:
         return point_inside
 
     def union(self, other):
-        return self.from_qpath(self.to_qpath() | other.to_qpath())
+        return self.from_qpath(self.qpath | other.qpath)
 
     def intersection(self, other):
-        return self.from_qpath(self.to_qpath() & other.to_qpath())
+        return self.from_qpath(self.qpath & other.qpath)
 
     def difference(self, other):
-        return self.from_qpath(self.to_qpath() - other.to_qpath())
+        return self.from_qpath(self.qpath - other.qpath)
 
     def intersects(self, other):
         s_minx, s_miny, s_maxx, s_maxy = self.bounding_box
@@ -140,23 +153,11 @@ class Path:
         if s_minx >= o_maxx or s_miny >= o_maxy or s_maxx <= o_minx or s_maxy <= o_miny:
             return False
         else:
-            return (
-                any(
-                    _lines_intersect(*l1, *l2)
-                    for l1, l2 in itertools.product(self.segments(), other.segments())
-                )
-                # if no pairs of line segments intersect, then the only way for the polygons
-                # to intersect is for *all* of the points of one to be inside the other.
-                # Since the only way for only some (but not all) of the vertices to be inside the
-                # other polygon is if the intersection test above succeeded, the only possibility
-                # left is all-or-nothing, therefore only one point needs to be checked
-                or any(point in self for point in other.points())
-                or next(self.points()) in other
-            )
+            return self.qpath.intersects(other.qpath)
 
     __or__ = __add__ = union
-    __sub__ = difference
     __and__ = intersection
+    __sub__ = difference
 
     # -- Conversions --
 
@@ -177,18 +178,6 @@ class Path:
         if cur_subpath:
             subpaths.append(cur_subpath)
         return cls(*subpaths) if subpaths else None
-
-    def to_qpath(self, path=None):
-        if path is None:
-            path = QPainterPath()
-        else:
-            path.clear()
-        for subpath in self._subpaths:
-            path.moveTo(*subpath[0])
-            for point in subpath[1:]:
-                path.lineTo(*point)
-            path.closeSubpath()
-        return path
 
     @classmethod
     def from_rect(cls, *args):

@@ -29,15 +29,7 @@ class Room:
         self._rewind = 0
 
     def get_path(self):
-        if self._path_cached:
-            if self._dirty:
-                self._dirty = False
-                return self._shape.to_qpath(self._path_cached)
-            else:
-                return self._path_cached
-        else:
-            self._path_cached = self._shape.to_qpath()
-            return self._path_cached
+        return self._shape.qpath
 
     # -- undo/redo --
 
