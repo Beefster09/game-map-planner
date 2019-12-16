@@ -112,19 +112,27 @@ class Path:
 
     def __contains__(self, point):
         """Exclusive point membership test - does not count colinear points or segments
+
+        Uses odd-even rule with a horizontal raycast to the left
         """
         minx, miny, maxx, maxy = self.bounding_box
         if point.x < minx or point.x > maxx or point.y < miny or point.y > maxy:
             return False
-        outside = Point(minx - 1, point.y)
+        def _x_at_y(p1, p2, y):
+            vec = p2 - p1
+            dy = y - p1.y
+            return p1.x + (dy / vec.y) * vec.x
         point_inside = False
         for segment in self.segments():
             p1, p2 = segment
-            if p1 == p2:
-                continue # ignore degenerate segments
-            if (p2 - p1).cross(point - p2) == 0: # point is colinear with segment
-                return False
-            elif _lines_intersect(outside, point, *segment):
+            if p1.y == p2.y or point.x < p1.x and point.x < p2.x:
+                continue # ignore horizontal lines and degenerate segments
+            miny = min(p1.y, p2.y)
+            maxy = max(p1.y, p2.y)
+            if point.y < miny or point.y > maxy:
+                continue
+            maxx = max(p1.x, p2.x)
+            if point.x > maxx or point.x > _x_at_y(p1, p2, point.y):
                 point_inside = not point_inside
         return point_inside
 
