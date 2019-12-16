@@ -17,18 +17,24 @@ draw_hint(painter, pixel_size) - draw current state hint
 
 """
 
+import os.path
 from math import floor, ceil
 
 from PySide2.QtCore import Qt
-from PySide2.QtGui import QPen, QBrush, QColor, QKeySequence
+from PySide2.QtGui import QPen, QBrush, QColor, QKeySequence, QIcon
 from PySide2.QtWidgets import QToolBar, QToolButton, QButtonGroup
 
 from core.geometry import Path, Point
 from core.model import Room
 
 
+ICON_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'icons')
+
+def _icon(name):
+    return QIcon(os.path.join(ICON_DIR, name))
+
 class _ShapeTool:
-    def commit(self, position, modifiers = 0):
+    def commit(self, position, modifiers=0):
         self.update_modifiers(modifiers)
         if self.erase:
             self.model.erase_rooms(self.shape)
@@ -73,8 +79,9 @@ class _ShapeTool:
 
 
 class RectTool(_ShapeTool):
+    icon = _icon('rect-tool.svg')
+    tooltip = "(R)ectangle - Create, erase, and add to rooms with a rectangular shape."
     shortcut = QKeySequence(Qt.Key_R)
-    label = 'Rectangle'
 
     def __init__(self, model, position, rightclick, modifiers):
         self.model = model
@@ -83,11 +90,11 @@ class RectTool(_ShapeTool):
         self.target_room = model.room_at(self.p1)
         self.update_modifiers(modifiers)
 
-    def update(self, position, modifiers = 0):
+    def update(self, position, modifiers=0):
         self.p2 = Point(*position.toTuple())
         self.update_modifiers(modifiers)
 
-    def commit(self, position, modifiers = 0):
+    def commit(self, position, modifiers=0):
         self.p2 = Point(*position.toTuple())
         super().commit(position, modifiers)
 
@@ -121,8 +128,9 @@ class RectTool(_ShapeTool):
 
 
 class CorridorTool(_ShapeTool):
+    icon = _icon('corridor-tool.svg')
+    tooltip = "(C)orridor - Create hallways easily"
     shortcut = QKeySequence(Qt.Key_C)
-    label = 'Corridor'
 
     def __init__(self, model, position, rightclick, modifiers):
         self.model = model
@@ -131,21 +139,98 @@ class CorridorTool(_ShapeTool):
         self.erase = rightclick
         self.update_modifiers(modifiers)
 
-    def update(self, position, modifiers = 0):
+    def update(self, position, modifiers=0):
         self.p2 = Point(*position.toTuple())
         self.update_modifiers(modifiers)
 
-    def commit(self, position, modifiers = 0):
+    def commit(self, position, modifiers=0):
         self.p2 = Point(*position.toTuple())
         super().commit(position, modifiers)
+
+
+class PencilTool(_ShapeTool):
+    icon = _icon('pencil-tool.svg')
+    tooltip = "(P)encil - Carve out irregular room shapes"
+    shortcut = QKeySequence(Qt.Key_P)
+
+    def __init__(self, model, position, rightclick, modifiers):
+        self.model = model
+        x, y = mouse_pos = Point(*position.toTuple())
+        self.target_room = model.room_at(mouse_pos)
+        self.cells = {(int(x), int(y)): True}  # TEMP: this needs to be a better data structure
+        self.erase = rightclick
+        self.update_modifiers(modifiers)
+
+    def update(self, position, modifiers=0):
+        x, y = position.toTuple()
+        self.cells[int(x), int(y)] = True
+        self.update_modifiers(modifiers)
+
+    def commit(self, position, modifiers=0):
+        x, y = position.toTuple()
+        self.cells[int(x), int(y)] = True
+        super().commit(position, modifiers)
+
+
+class SelectTool:
+    icon = _icon('select.svg')
+    tooltip = "(A) Select - Select objects and edit their properties"
+    shortcut = QKeySequence(Qt.Key_A)
+
+    def __init__(self, model, position, rightclick, modifiers):
+        pass
+
+    def update(self, position, modifiers=0):
+        pass
+
+    def commit(self, position, modifiers=0):
+        pass
+
+    def update_modifiers(self, modifiers=0):
+        pass
+
+    def draw_hint(self, painter, pixel_size):
+        pass
+
+
+class MoveTool:
+    icon = _icon('move.svg')
+    tooltip = "(M)ove - Move rooms and objects in one click"
+    shortcut = QKeySequence(Qt.Key_M)
+
+    def __init__(self, model, position, rightclick, modifiers):
+        pass
+
+    def update(self, position, modifiers=0):
+        pass
+
+    def commit(self, position, modifiers=0):
+        pass
+
+    def update_modifiers(self, modifiers=0):
+        pass
+
+    def draw_hint(self, painter, pixel_size):
+        pass
 
 
 # === ToolBar ===
 
 class EditingTools(QToolBar):
     EDIT_TOOLS = [
+        SelectTool,
+        MoveTool,
+        None,
         RectTool,
         CorridorTool,
+        PencilTool,
+        None,
+        # VertexTool
+        # WallTool
+        # RazorbladeTool
+        None,
+        # DoorTool
+        # ItemTool
     ]
 
     def __init__(self, receiver):
@@ -158,15 +243,27 @@ class EditingTools(QToolBar):
         self.tools = []
 
         for tool_class in self.EDIT_TOOLS:
+            if tool_class is None:
+                self.addSeparator()
+                continue
+
             tool = QToolButton()
-            if hasattr(tool_class, 'icon'):
-                tool.setIcon(tool_class.icon)
-            else:
-                tool.setText(tool_class.label)
-            if hasattr(tool_class, 'shortcut'):
-                tool.setShortcut(tool_class.shortcut)
             tool.setCheckable(True)
             tool.tool = tool_class
+
+            if hasattr(tool_class, 'icon'):
+                tool.setIcon(tool_class.icon)
+            elif hasattr(tool_class, 'label'):
+                tool.setText(tool_class.label)
+            else:
+                tool.setText(tool.__name__)
+
+            if hasattr(tool_class, 'shortcut'):
+                tool.setShortcut(tool_class.shortcut)
+
+            if hasattr(tool_class, 'tooltip'):
+                tool.setToolTip(tool_class.tooltip)
+
             self.edit_group.addButton(tool)
             self.addWidget(tool)
             self.tools.append(tool)

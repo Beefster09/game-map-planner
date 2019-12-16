@@ -24,6 +24,11 @@ class MapDesigner(QMainWindow):
         # File Menu
         self.file_menu = self.menu.addMenu("File")
 
+        new_action = QAction("New Map", self)
+        new_action.setShortcut(QKeySequence.New)
+        new_action.triggered.connect(self.editor.new)
+        self.file_menu.addAction(new_action)
+
         open_action = QAction("Open...", self)
         open_action.setShortcut(QKeySequence.Open)
         open_action.triggered.connect(self.editor.open)
@@ -44,6 +49,8 @@ class MapDesigner(QMainWindow):
         exit_action.triggered.connect(self.close)
         self.file_menu.addAction(exit_action)
 
+        # Edit Menu
+        # TODO: Undo/Redo
 
         # Status Bar
         self.status = self.statusBar()

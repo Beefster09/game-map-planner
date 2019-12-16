@@ -5,7 +5,7 @@ import os.path
 import json
 
 from PySide2.QtGui import *
-from PySide2.QtWidgets import QFrame, QApplication, QFileDialog
+from PySide2.QtWidgets import QFrame, QApplication, QFileDialog, QMessageBox
 
 from core.model import Map
 
@@ -182,8 +182,8 @@ class MapDisplay(QFrame):
         filename, _ = QFileDialog.getSaveFileName(
             self,
             "Save map as...",
-            os.path.expanduser('~'),
-            "Maps (*.gmap)",
+            os.path.dirname(self.filename) if self.filename else os.path.expanduser('~'),
+            "Maps (*.gmap *.json)",
         )
         self._save_model(filename)
 
@@ -205,9 +205,15 @@ class MapDisplay(QFrame):
         filename, _ = QFileDialog.getOpenFileName(
             self,
             "Open map...",
-            os.path.expanduser('~'),
-            "Maps (*.gmap)",
+            os.path.dirname(self.filename) if self.filename else os.path.expanduser('~'),
+            "Maps (*.gmap *.json)",
         )
         self.filename = filename
         self.model = Map.load(filename)
         self.update()
+
+    def new(self):
+        # TODO: Tabs
+        answer = QMessageBox.question(self, "Confirm New Map...", "Are you sure?")
+        if answer == QMessageBox.Yes:
+            self.model = Map()

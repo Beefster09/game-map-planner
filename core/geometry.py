@@ -194,7 +194,7 @@ class Path:
             )
 
     def to_json(self):
-        return [[*subpath] for subpath in self._subpaths]
+        return self._subpaths
 
     @classmethod
     def from_json(cls, data):
