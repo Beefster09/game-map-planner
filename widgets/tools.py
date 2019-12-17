@@ -15,6 +15,8 @@ draw_hint(painter, pixel_size) - draw current state hint
 `painter` is the active painter for drawing
 `pixel_size` is the editor's current (width, height) of a single pixel
 
+update(...) should return True if a repaint is needed
+
 """
 
 import os.path
@@ -24,7 +26,7 @@ from PySide2.QtCore import Qt
 from PySide2.QtGui import QPen, QBrush, QColor, QKeySequence, QIcon
 from PySide2.QtWidgets import QToolBar, QToolButton, QButtonGroup
 
-from core.geometry import Path, Point
+from core.geometry import Path, Point, Vector2
 from core.model import Room
 
 
@@ -50,6 +52,12 @@ class _ShapeTool:
             self.model.new_room(self.shape, replace=(self.mode != 'polite'))
 
     def update_modifiers(self, modifiers):
+        if hasattr(self, 'mode'):
+            last_mode = self.mode
+            last_snap = self.grid_snap
+        else:
+            last_mode = None
+            last_snap = None
         if modifiers & Qt.ShiftModifier:
             if modifiers & Qt.ControlModifier:
                 self.mode = 'replace'
@@ -61,6 +69,7 @@ class _ShapeTool:
             else:
                 self.mode = 'auto'
         self.grid_snap = modifiers & Qt.AltModifier == 0
+        return last_mode != self.mode or last_snap != self.grid_snap
 
     def draw_hint(self, painter, pixel_size):
         painter.strokePath(
@@ -95,8 +104,9 @@ class RectTool(_ShapeTool):
         self.update_modifiers(modifiers)
 
     def update(self, position, modifiers=0):
+        old_p2 = _cell(self.p2)
         self.p2 = Point(*position.toTuple())
-        self.update_modifiers(modifiers)
+        return self.update_modifiers(modifiers) or not self.grid_snap or old_p2 != _cell(self.p2)
 
     @property
     def shape(self):
@@ -136,47 +146,53 @@ class CorridorTool(_ShapeTool):
 
     def __init__(self, model, position, rightclick, modifiers):
         self.model = model
-        rawpoint = Point(*position.toTuple())
-        self.p1 = self.p2 = _cell(rawpoint)  # FIXME: this is incompatible with non-gridsnap...
-        self.target_room = model.room_at(rawpoint)
+        self.p1 = self.p2 = Point(*position.toTuple())
+        self.target_room = model.room_at(self.p1)
         self.bias = None
         self.erase = rightclick
         self.update_modifiers(modifiers)
 
     def update(self, position, modifiers=0):
-        self.p2 = _cell(position.toTuple())
-        if self.p1.x == self.p2.x:
+        old_p2 = _cell(self.p2)
+        self.p2 = Point(*position.toTuple())
+        if abs(self.p1.x - self.p2.x) < 0.5:
             self.bias = VERTICAL
-        elif self.p1.y == self.p2.y:
+        elif abs(self.p1.y - self.p2.y) < 0.5:
             self.bias = HORIZONTAL
-        self.update_modifiers(modifiers)
+        return self.update_modifiers(modifiers) or not self.grid_snap or old_p2 != _cell(self.p2)
 
     @property
     def shape(self):
+        if self.grid_snap:
+            p1 = _cell(self.p1)
+            p2 = _cell(self.p2)
+        else:
+            p1 = self.p1 - Vector2(0.5, 0.5)
+            p2 = self.p2 - Vector2(0.5, 0.5)
         if self.bias is VERTICAL:
-            if self.p1.x == self.p2.x:
-                if self.p1.y < self.p2.y:
-                    p1, p2 = self.p1, self.p2
+            if p1.x == p2.x:
+                if p1.y < p2.y:
+                    p1, p2 = p1, p2
                 else:
-                    p1, p2 = self.p2, self.p1
+                    p1, p2 = p2, p1
                 return Path.from_rect(*p1, 1, p2.y - p1.y + 1)
             else:
-                if self.p1.x < self.p2.x:
-                    x1o = self.p1.x
+                if p1.x < p2.x:
+                    x1o = p1.x
                     x1i = x1o + 1
-                    x2 = self.p2.x + 1
+                    x2 = p2.x + 1
                 else:
-                    x1i = self.p1.x
+                    x1i = p1.x
                     x1o = x1i + 1
-                    x2 = self.p2.x
+                    x2 = p2.x
 
-                if self.p1.y < self.p2.y:
-                    y1 = self.p1.y
-                    y2i = self.p2.y
+                if p1.y < p2.y:
+                    y1 = p1.y
+                    y2i = p2.y
                     y2o = y2i + 1
                 else:
-                    y1 = self.p1.y + 1
-                    y2o = self.p2.y
+                    y1 = p1.y + 1
+                    y2o = p2.y
                     y2i = y2o + 1
 
                 return Path([
@@ -188,30 +204,30 @@ class CorridorTool(_ShapeTool):
                     (x1i, y1),
                 ])
         elif self.bias is HORIZONTAL:
-            if self.p1.y == self.p2.y:
-                if self.p2.x > self.p1.x:
-                    p1, p2 = self.p1, self.p2
+            if p1.y == p2.y:
+                if p2.x > p1.x:
+                    p1, p2 = p1, p2
                 else:
-                    p1, p2 = self.p2, self.p1
+                    p1, p2 = p2, p1
                 return Path.from_rect(*p1, p2.x - p1.x + 1, 1)
             else:
-                if self.p1.x < self.p2.x:
-                    x1 = self.p1.x
-                    x2i = self.p2.x
+                if p1.x < p2.x:
+                    x1 = p1.x
+                    x2i = p2.x
                     x2o = x2i + 1
                 else:
-                    x1 = self.p1.x + 1
-                    x2o = self.p2.x
+                    x1 = p1.x + 1
+                    x2o = p2.x
                     x2i = x2o + 1
 
-                if self.p1.y < self.p2.y:
-                    y1o = self.p1.y
+                if p1.y < p2.y:
+                    y1o = p1.y
                     y1i = y1o + 1
-                    y2 = self.p2.y + 1
+                    y2 = p2.y + 1
                 else:
-                    y1i = self.p1.y
+                    y1i = p1.y
                     y1o = y1i + 1
-                    y2 = self.p2.y
+                    y2 = p2.y
 
                 return Path([
                     (x1, y1o),
@@ -222,7 +238,7 @@ class CorridorTool(_ShapeTool):
                     (x1, y1i),
                 ])
         else:
-            return Path.from_rect(*self.p1, 1, 1)
+            return Path.from_rect(*p1, 1, 1)
 
 
 class PencilTool(_ShapeTool):

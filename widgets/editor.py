@@ -49,8 +49,6 @@ class MapDisplay(QFrame):
         self.edit_state = None
         self.pan_anchor = None
 
-        self.grid_size = 1.0, 1.0
-
         self.filename = None
 
     def pan(self, x, y):
@@ -85,8 +83,6 @@ class MapDisplay(QFrame):
             bottom = int(visible.bottom() + 2)
             left = int(visible.left() - 1)
             right = int(visible.right() + 2)
-
-            grid_x, grid_y = self.grid_size
 
             # Vertical Lines
             p.setPen(QPen(GRID_BRUSH, self.screen_to_world.m11() * 2))
@@ -134,11 +130,18 @@ class MapDisplay(QFrame):
             self.pan(diff.x(), diff.y())
 
         if self.edit_state:
-            self.edit_state.update(
+            if self.edit_state.update(
                 self.screen_to_world.map(event.localPos()),
                 QApplication.keyboardModifiers()
-            )
-            self.update()
+            ):
+                self.update()
+        elif hasattr(self.current_tool, 'hover'):
+            if self.current_tool.hover(
+                self.model,
+                self.screen_to_world.map(event.localPos()),
+                QApplication.keyboardModifiers()
+            ):
+                self.update()
 
     def mouseReleaseEvent(self, event):
         button = event.buttons()
