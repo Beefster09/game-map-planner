@@ -33,9 +33,13 @@ ICON_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'icons')
 def _icon(name):
     return QIcon(os.path.join(ICON_DIR, name))
 
+def _cell(point):
+    x, y = point
+    return Point(int(x), int(y))
+
 class _ShapeTool:
     def commit(self, position, modifiers=0):
-        self.update_modifiers(modifiers)
+        self.update(position, modifiers)
         if self.erase:
             self.model.erase_rooms(self.shape)
         elif self.mode == 'auto' and self.target_room:
@@ -94,10 +98,6 @@ class RectTool(_ShapeTool):
         self.p2 = Point(*position.toTuple())
         self.update_modifiers(modifiers)
 
-    def commit(self, position, modifiers=0):
-        self.p2 = Point(*position.toTuple())
-        super().commit(position, modifiers)
-
     @property
     def shape(self):
         p1, p2 = self.p1, self.p2
@@ -126,6 +126,8 @@ class RectTool(_ShapeTool):
                     Point(floor(p2.x), floor(p2.y))
                 )
 
+VERTICAL = object()
+HORIZONTAL = object()
 
 class CorridorTool(_ShapeTool):
     icon = _icon('corridor-tool.svg')
@@ -134,18 +136,95 @@ class CorridorTool(_ShapeTool):
 
     def __init__(self, model, position, rightclick, modifiers):
         self.model = model
-        self.p1 = self.p2 = Point(*position.toTuple())
-        self.target_room = model.room_at(self.p1)
+        rawpoint = Point(*position.toTuple())
+        self.p1 = self.p2 = _cell(rawpoint)  # FIXME: this is incompatible with non-gridsnap...
+        self.target_room = model.room_at(rawpoint)
+        self.bias = None
         self.erase = rightclick
         self.update_modifiers(modifiers)
 
     def update(self, position, modifiers=0):
-        self.p2 = Point(*position.toTuple())
+        self.p2 = _cell(position.toTuple())
+        if self.p1 == self.p2:
+            self.bias = None
+        elif self.p1.x == self.p2.x:
+            self.bias = VERTICAL
+        elif self.bias is None or self.p1.y == self.p2.y:
+            self.bias = HORIZONTAL
         self.update_modifiers(modifiers)
 
-    def commit(self, position, modifiers=0):
-        self.p2 = Point(*position.toTuple())
-        super().commit(position, modifiers)
+    @property
+    def shape(self):
+        if self.bias is VERTICAL:
+            if self.p1.x == self.p2.x:
+                if self.p1.y < self.p2.y:
+                    p1, p2 = self.p1, self.p2
+                else:
+                    p1, p2 = self.p2, self.p1
+                return Path.from_rect(*p1, 1, p2.y - p1.y + 1)
+            else:
+                if self.p1.x < self.p2.x:
+                    x1o = self.p1.x
+                    x1i = x1o + 1
+                    x2 = self.p2.x + 1
+                else:
+                    x1i = self.p1.x
+                    x1o = x1i + 1
+                    x2 = self.p2.x
+
+                if self.p1.y < self.p2.y:
+                    y1 = self.p1.y
+                    y2i = self.p2.y
+                    y2o = y2i + 1
+                else:
+                    y1 = self.p1.y + 1
+                    y2o = self.p2.y
+                    y2i = y2o + 1
+
+                return Path([
+                    (x1o, y1),
+                    (x1o, y2o),
+                    (x2, y2o),
+                    (x2, y2i),
+                    (x1i, y2i),
+                    (x1i, y1),
+                ])
+        elif self.bias is HORIZONTAL:
+            if self.p1.y == self.p2.y:
+                if self.p2.x > self.p1.x:
+                    p1, p2 = self.p1, self.p2
+                else:
+                    p1, p2 = self.p2, self.p1
+                return Path.from_rect(*p1, p2.x - p1.x + 1, 1)
+            else:
+                if self.p1.x < self.p2.x:
+                    x1 = self.p1.x
+                    x2i = self.p2.x
+                    x2o = x2i + 1
+                else:
+                    x1 = self.p1.x + 1
+                    x2o = self.p2.x
+                    x2i = x2o + 1
+
+                if self.p1.y < self.p2.y:
+                    y1o = self.p1.y
+                    y1i = y1o + 1
+                    y2 = self.p2.y + 1
+                else:
+                    y1i = self.p1.y
+                    y1o = y1i + 1
+                    y2 = self.p2.y
+
+                return Path([
+                    (x1, y1o),
+                    (x2o, y1o),
+                    (x2o, y2),
+                    (x2i, y2),
+                    (x2i, y1i),
+                    (x1, y1i),
+                ])
+        else:
+            return Path.from_rect(*self.p1, 1, 1)
 
 
 class PencilTool(_ShapeTool):
@@ -165,11 +244,6 @@ class PencilTool(_ShapeTool):
         x, y = position.toTuple()
         self.cells[int(x), int(y)] = True
         self.update_modifiers(modifiers)
-
-    def commit(self, position, modifiers=0):
-        x, y = position.toTuple()
-        self.cells[int(x), int(y)] = True
-        super().commit(position, modifiers)
 
 
 class SelectTool:
