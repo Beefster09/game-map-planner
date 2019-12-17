@@ -145,11 +145,9 @@ class CorridorTool(_ShapeTool):
 
     def update(self, position, modifiers=0):
         self.p2 = _cell(position.toTuple())
-        if self.p1 == self.p2:
-            self.bias = None
-        elif self.p1.x == self.p2.x:
+        if self.p1.x == self.p2.x:
             self.bias = VERTICAL
-        elif self.bias is None or self.p1.y == self.p2.y:
+        elif self.p1.y == self.p2.y:
             self.bias = HORIZONTAL
         self.update_modifiers(modifiers)
 
@@ -288,6 +286,17 @@ class MoveTool:
         pass
 
 
+class ItemTool:
+    icon = _icon('item.svg')
+    tooltip = "(I) Item - add items to room"
+    shortcut = QKeySequence(Qt.Key_I)
+
+
+class DoorTool:
+    icon = _icon('door.svg')
+    tooltip = "(D) Door - connect adjacent rooms with doors"
+    shortcut = QKeySequence(Qt.Key_D)
+
 # === ToolBar ===
 
 class EditingTools(QToolBar):
@@ -303,8 +312,8 @@ class EditingTools(QToolBar):
         # WallTool
         # RazorbladeTool
         None,
-        # DoorTool
-        # ItemTool
+        DoorTool,
+        ItemTool,
     ]
 
     def __init__(self, receiver):

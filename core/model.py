@@ -7,10 +7,24 @@ from collections import deque
 
 from PySide2.QtGui import QColor
 
-from .geometry import Path, Point
+from core.geometry import Path, Point
+
+class Item:
+    def __init__(self, label, icon=None):
+        self.label = label
+        self.icon = icon
+
+
+class Door:
+    def __init__(self, room1, room2, location, type=None, notes=None):
+        self.rooms = room1, room2
+        self.location = location
+        self.type = type
+        self.notes = notes
+
 
 class Room:
-    def __init__(self, shape, name=None, color=None):
+    def __init__(self, shape, name=None, color=None, items=()):
         self._id = str(uuid.uuid4())
         if isinstance(shape, Path):
             self._shape = shape
@@ -23,10 +37,13 @@ class Room:
             raise TypeError(shape)
         self._name = name
         self._color = color or QColor('white')
+        self._items = list(items)
 
-        # For internal use (e.g. undo/redo)
+        # For internal use (e.g. undo/redo, room links)
         self._undo_history = []
         self._rewind = 0
+
+        self._door_links = []
 
     def get_path(self):
         return self._shape.qpath
@@ -107,6 +124,7 @@ class Room:
             'name': self.name,
             'shape': self.shape.to_json(),
             'color': self.color.name(),
+            'items': self._items
         }
 
     @classmethod
@@ -120,18 +138,11 @@ class Room:
         return room
 
 
-class Door:
-    pass
-
-class Item:
-    pass
-
 class Floor:
-    def __init__(self, rooms=(), doors=(), items=(), name=None):
+    def __init__(self, rooms=(), doors=(), name=None):
         self.name = name
         self._rooms = list(rooms)
         self._doors = list(doors)
-        self._items = list(items)
 
     def rooms(self):
         yield from self._rooms
@@ -190,7 +201,6 @@ class Floor:
             'name': self.name,
             'rooms': [room.to_json() for room in self._rooms],
             'doors': self._doors,
-            'items': self._items,
         }
 
     @classmethod
@@ -198,7 +208,6 @@ class Floor:
         return cls(
             [Room.from_json(r) for r in data['rooms']],
             data['doors'],
-            data['items'],
             name=data['name']
         )
 
