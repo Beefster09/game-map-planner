@@ -51,6 +51,9 @@ class MapDisplay(QFrame):
 
         self.filename = None
 
+        self.hover_key = None
+        self.hover_position = None
+
     def pan(self, x, y):
         self.world_to_screen.translate(x, y)
         self.screen_to_world, _ = self.world_to_screen.inverted()
@@ -99,6 +102,13 @@ class MapDisplay(QFrame):
                     p,
                     (self.screen_to_world.m11(), self.screen_to_world.m22())
                 )
+            elif self.hover_key:
+                self.current_tool.draw_hover_hint(
+                    p,
+                    self.hover_position,
+                    (self.screen_to_world.m11(), self.screen_to_world.m22()),
+                    QApplication.keyboardModifiers()
+                )
 
             p.setWorldTransform(QTransform())
             self.drawFrame(p)
@@ -136,11 +146,14 @@ class MapDisplay(QFrame):
             ):
                 self.update()
         elif hasattr(self.current_tool, 'hover'):
-            if self.current_tool.hover(
-                self.model,
-                self.screen_to_world.map(event.localPos()),
+            self.hover_position = self.screen_to_world.map(event.localPos())
+            last_hover_key = self.hover_key
+            self.hover_key = self.current_tool.hover(
+                self.model[self.current_floor],
+                self.hover_position,
                 QApplication.keyboardModifiers()
-            ):
+            )
+            if last_hover_key != self.hover_key:
                 self.update()
 
     def mouseReleaseEvent(self, event):
@@ -180,6 +193,11 @@ class MapDisplay(QFrame):
     def set_tool(self, button):
         self.edit_state = None
         self.current_tool = button.tool
+        if hasattr(self.current_tool, 'cursor'):
+            self.setCursor(QCursor(self.current_tool.cursor))
+        else:
+            self.setCursor(QCursor(Qt.ArrowCursor))
+        self.setMouseTracking(hasattr(self.current_tool, 'hover'))
 
     def save_as(self):
         filename, _ = QFileDialog.getSaveFileName(

@@ -5,6 +5,7 @@ import json
 import uuid
 from collections import deque
 
+from PySide2.QtCore import QPoint, QPointF
 from PySide2.QtGui import QColor
 
 from core.geometry import Path, Point
@@ -148,6 +149,8 @@ class Floor:
         yield from self._rooms
 
     def room_at(self, point):
+        if isinstance(point, (QPoint, QPointF)):
+            point = Point(point.x(), point.y())
         for room in self._rooms:
             if point in room.shape:
                 return room

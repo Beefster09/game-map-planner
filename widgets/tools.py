@@ -22,8 +22,8 @@ update(...) should return True if a repaint is needed
 import os.path
 from math import floor, ceil
 
-from PySide2.QtCore import Qt
-from PySide2.QtGui import QPen, QBrush, QColor, QKeySequence, QIcon
+from PySide2.QtCore import Qt, QPoint, QPointF
+from PySide2.QtGui import *
 from PySide2.QtWidgets import QToolBar, QToolButton, QButtonGroup
 
 from core.geometry import Path, Point, Vector2
@@ -38,6 +38,10 @@ def _icon(name):
 def _cell(point):
     x, y = point
     return Point(int(x), int(y))
+
+def _cell_center(point):
+    x, y = point
+    return Point(int(x) + 0.5, int(y) + 0.5)
 
 class _ShapeTool:
     def commit(self, position, modifiers=0):
@@ -95,6 +99,7 @@ class RectTool(_ShapeTool):
     icon = _icon('rect-tool.svg')
     tooltip = "(R)ectangle - Create, erase, and add to rooms with a rectangular shape."
     shortcut = QKeySequence(Qt.Key_R)
+    cursor = Qt.CrossCursor
 
     def __init__(self, model, position, rightclick, modifiers):
         self.model = model
@@ -104,7 +109,7 @@ class RectTool(_ShapeTool):
         self.update_modifiers(modifiers)
 
     def update(self, position, modifiers=0):
-        old_p2 = _cell(self.p2)
+        old_p2 = _cell(self.p2) # FIXME - does not actually correspond to the shape changing
         self.p2 = Point(*position.toTuple())
         return self.update_modifiers(modifiers) or not self.grid_snap or old_p2 != _cell(self.p2)
 
@@ -143,6 +148,7 @@ class CorridorTool(_ShapeTool):
     icon = _icon('corridor-tool.svg')
     tooltip = "(C)orridor - Create hallways easily"
     shortcut = QKeySequence(Qt.Key_C)
+    cursor = Qt.CrossCursor
 
     def __init__(self, model, position, rightclick, modifiers):
         self.model = model
@@ -245,6 +251,7 @@ class PencilTool(_ShapeTool):
     icon = _icon('pencil-tool.svg')
     tooltip = "(P)encil - Carve out irregular room shapes"
     shortcut = QKeySequence(Qt.Key_P)
+    cursor = Qt.CrossCursor
 
     def __init__(self, model, position, rightclick, modifiers):
         self.model = model
@@ -306,6 +313,20 @@ class ItemTool:
     icon = _icon('item.svg')
     tooltip = "(I) Item - add items to room"
     shortcut = QKeySequence(Qt.Key_I)
+
+    @classmethod
+    def hover(cls, model, position, modifiers=0):
+        grid_snap = modifiers & Qt.AltModifier == 0
+        if model.room_at(position):
+            return _cell(position.toTuple()) if grid_snap else position
+
+    @classmethod
+    def draw_hover_hint(cls, painter, position, pixel_size, modifiers=0):
+        grid_snap = modifiers & Qt.AltModifier == 0
+        center = _cell_center(position.toTuple()) if grid_snap else position.toTuple()
+        path = QPainterPath()
+        path.addEllipse(QPointF(*center), 0.3, 0.3)
+        painter.fillPath(path, QBrush(Qt.darkGray))
 
 
 class DoorTool:
