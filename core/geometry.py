@@ -28,6 +28,9 @@ class Vector2(namedtuple('_Vector2', ['x', 'y'])):
     def length(self):
         return math.hypot(self.x, self.y)
 
+    def distance(self, other):
+        return math.hypot(self.x - other.x, self.y - other.y)
+
 
 
 Point = Vector2

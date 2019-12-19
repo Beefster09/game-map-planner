@@ -11,9 +11,14 @@ from PySide2.QtGui import QColor
 from core.geometry import Path, Point
 
 class Item:
-    def __init__(self, label, icon=None):
+    def __init__(self, position, label, label_pos_hint=None, icon=None):
+        self.position = position
         self.label = label
         self.icon = icon
+        if label_pos_hint is None:
+            self.label_pos_hint = position
+        else:
+            self.label_pos_hint = label_pos_hint
 
 
 class Door:
@@ -48,6 +53,9 @@ class Room:
 
     def get_path(self):
         return self._shape.qpath
+
+    def add_item(self, item):
+        self._items.append(item)
 
     # -- undo/redo --
 
@@ -116,6 +124,10 @@ class Room:
     @property
     def id(self):
         return self._id
+
+    @property
+    def items(self):
+        return self._items
 
     # -- conversions --
 

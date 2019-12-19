@@ -20,7 +20,6 @@ update(...) should return True if a repaint is needed
 """
 
 import os.path
-from contextlib import contextmanager
 from math import floor, ceil
 
 from PySide2.QtCore import Qt, QPoint, QPointF, QRectF
@@ -28,7 +27,8 @@ from PySide2.QtGui import *
 from PySide2.QtWidgets import QToolBar, QToolButton, QButtonGroup
 
 from core.geometry import Path, Point, Vector2
-from core.model import Room
+from core.model import Room, Item
+from widgets.paintutil import new_context, draw_label, fill_circle
 
 
 ICON_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'icons')
@@ -44,11 +44,8 @@ def _cell_center(point):
     x, y = point
     return Point(int(x) + 0.5, int(y) + 0.5)
 
-@contextmanager
-def new_context(painter):
-    painter.save()
-    yield
-    painter.restore()
+class ToolNotAllowed(Exception):
+    pass
 
 class _ShapeTool:
     def finish(self, position, modifiers=0):
@@ -338,14 +335,14 @@ class ItemTool:
 
     @classmethod
     def draw_item_hint(cls, painter, position, pixel_size):
-        path = QPainterPath()
-        path.addEllipse(QPointF(*position), 0.3, 0.3)
-        painter.fillPath(path, QBrush(Qt.darkGray))
+        fill_circle(painter, position, 0.3, Qt.darkGray)
 
     def __init__(self, model, position, rightclick, modifiers):
         grid_snap = modifiers & Qt.AltModifier == 0
         pos = Point(*position.toTuple())
         self.target_room = model.room_at(pos)
+        if self.target_room is None:
+            raise ToolNotAllowed("ItemTool can only be used inside rooms")
         self.item_pos = _cell_center(pos) if grid_snap else pos
         self.label_pos = pos
 
@@ -354,53 +351,24 @@ class ItemTool:
         return True
 
     def finish(self, position, modifiers=0):
-        # self.target_room.add_item()
-        pass
+        self.target_room.add_item(Item(
+            self.item_pos,
+            "Item",
+            Point(*position.toTuple()),
+        ))
+        # TODO: edit the label
 
     def draw_hint(self, painter, pixel_size):
         self.draw_item_hint(painter, self.item_pos, pixel_size)
-        offset = self.label_pos - self.item_pos
-        cell_height = 1 / pixel_size[0]
-        label_font = QFont()
-        label_font.setPixelSize(self.LABEL_SIZE)
-        label_text = "Item Label"
-        label_width = QFontMetrics(label_font).width(label_text) * pixel_size[0]
-        label_space = self.LABEL_SPACING * pixel_size[0]
-        if offset.length_squared > 0.25:
-            with new_context(painter):
-                painter.setCompositionMode(QPainter.CompositionMode_Difference)
-                painter.setPen(QPen(QColor('#cccccc'), pixel_size[0] * 2))
-                painter.drawLine(QPointF(*self.item_pos), QPointF(*self.label_pos))
-            if abs(offset.x) > abs(offset.y):
-                label_align = Qt.AlignVCenter
-                label_y = self.label_pos.y - 0.5
-                if offset.x > 0:
-                    label_x = self.label_pos.x + label_space
-                    label_align |= Qt.AlignLeft
-                else:
-                    label_x = self.label_pos.x - label_space - label_width
-                    label_align |= Qt.AlignRight
-            else:
-                label_align = Qt.AlignHCenter
-                label_x = self.label_pos.x - label_width / 2
-                if offset.y > 0:
-                    label_y = self.label_pos.y + label_space
-                    label_align |= Qt.AlignTop
-                else:
-                    label_y = self.label_pos.y - label_space - 1
-                    label_align |= Qt.AlignBottom
-        else:
-            label_align = Qt.AlignHCenter | Qt.AlignBottom
-            label_x = self.item_pos.x - label_width / 2
-            label_y = self.item_pos.y - 1.3 - label_space
-
-        label_opts = QTextOption(label_align)
-        painter.setFont(label_font)
-        painter.setPen(Qt.darkGray)
-        bounding_box = painter.transform().mapRect(QRectF(label_x, label_y, label_width, 1))
-        painter.setWorldMatrixEnabled(False)
-        painter.drawText(bounding_box, label_text, label_opts)
-        painter.setWorldMatrixEnabled(True)
+        draw_label(
+            painter,
+            self.item_pos, self.label_pos,
+            "Item",
+            pixel_size,
+            font=self.LABEL_SIZE,
+            spacing=self.LABEL_SPACING,
+            color=Qt.darkGray
+        )
 
 class DoorTool:
     icon = _icon('door.svg')

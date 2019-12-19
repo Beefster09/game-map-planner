@@ -8,28 +8,13 @@ from PySide2.QtGui import *
 from PySide2.QtWidgets import QFrame, QApplication, QFileDialog, QMessageBox
 
 from core.model import Map
+from widgets.paintutil import Painter, fill_circle, draw_label
 
 BLACK_BRUSH = QBrush(QColor('black'))
 WHITE_BRUSH = QBrush(QColor('white'))
 GRID_BRUSH = QBrush(QColor(120, 185, 200, 100))
 
 LeftAndRightButtons = Qt.LeftButton | Qt.RightButton
-
-class Painter:
-    def __init__(self, widget, transform=None):
-        self.painter = QPainter()
-        self.widget = widget
-        self.transform = transform
-
-    def __enter__(self):
-        self.painter.begin(self.widget)
-        if self.transform:
-            self.painter.setWorldTransform(self.transform)
-        return self.painter
-
-    def __exit__(self, a, b, c):
-        self.painter.end()
-        return False
 
 class MapDisplay(QFrame):
     def __init__(self):
@@ -74,11 +59,19 @@ class MapDisplay(QFrame):
 
     def paintEvent(self, event):
         with Painter(self, self.world_to_screen) as p:
+            pixel_size = self.screen_to_world.m11(), self.screen_to_world.m22()
             for room in self.model[self.current_floor].rooms():
                 # TODO? Culling
                 p.setPen(QPen(BLACK_BRUSH, self.screen_to_world.m11() * 4))
                 p.setBrush(WHITE_BRUSH)
                 p.drawPath(room.get_path())
+
+                for item in room.items:
+                    if item.icon:
+                        pass  # TODO
+                    else:
+                        fill_circle(p, item.position, 0.3)
+                    draw_label(p, item.position, item.label_pos_hint, item.label, pixel_size)
 
             # Draw grid lines
             visible = self.screen_to_world.mapRect(event.rect())
@@ -98,15 +91,12 @@ class MapDisplay(QFrame):
                 p.drawLine(left, y, right, y)
 
             if self.edit_state:
-                self.edit_state.draw_hint(
-                    p,
-                    (self.screen_to_world.m11(), self.screen_to_world.m22())
-                )
+                self.edit_state.draw_hint(p, pixel_size)
             elif self.hover_key:
                 self.current_tool.draw_hover_hint(
                     p,
                     self.hover_position,
-                    (self.screen_to_world.m11(), self.screen_to_world.m22()),
+                    pixel_size,
                     QApplication.keyboardModifiers()
                 )
 
