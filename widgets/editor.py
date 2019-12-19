@@ -162,7 +162,7 @@ class MapDisplay(QFrame):
             self.pan_anchor = None
 
         if self.edit_state:
-            self.edit_state.commit(
+            self.edit_state.finish(
                 self.screen_to_world.map(event.localPos()),
                 QApplication.keyboardModifiers()
             )

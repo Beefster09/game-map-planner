@@ -20,6 +20,16 @@ class Vector2(namedtuple('_Vector2', ['x', 'y'])):
     def __sub__(self, other):
         return Vector2(self.x - other.x, self.y - other.y)
 
+    @property
+    def length_squared(self):
+        return self.x * self.x + self.y * self.y
+
+    @property
+    def length(self):
+        return math.hypot(self.x, self.y)
+
+
+
 Point = Vector2
 
 def _rect_to_path_xywh(x, y, w, h):
