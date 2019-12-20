@@ -4,7 +4,7 @@ Expected interface from each tool class:
 
 __init__(model, position, rightclick, modifiers) - on first click
 update(position, modifiers) - when dragging or changing which modifier keys are held
-finish(position, modifiers) - when releasing the mouse. should edit the model
+finish(widget, position, modifiers) - when releasing the mouse. should edit the model
 update_modifiers(modifiers) - when toggling modifier keys
 draw_hint(painter, pixel_size) - draw current state hint
 
@@ -22,13 +22,13 @@ update(...) should return True if a repaint is needed
 import os.path
 from math import floor, ceil
 
-from PySide2.QtCore import Qt, QPoint, QPointF, QRectF
+from PySide2.QtCore import Qt, QPoint, QPointF, QRectF, Signal
 from PySide2.QtGui import *
-from PySide2.QtWidgets import QToolBar, QToolButton, QButtonGroup
+from PySide2.QtWidgets import QToolBar, QToolButton, QButtonGroup, QTextEdit, QFrame
 
 from core.geometry import Path, Point, Vector2
 from core.model import Room, Item
-from widgets.paintutil import new_context, draw_label, fill_circle
+from widgets.paintutil import *
 
 
 ICON_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'icons')
@@ -47,8 +47,54 @@ def _cell_center(point):
 class ToolNotAllowed(Exception):
     pass
 
+
+class LabelEditor(QTextEdit):
+    commit = Signal(str)
+    done = Signal()
+
+    def __init__(self, parent, rect, placeholder="Label", alignment=None):
+        super().__init__(parent=parent)
+        self.move(rect.left(), rect.top())
+        if alignment:
+            self.setAlignment(alignment)
+        self.setPlaceholderText(placeholder)
+        self.setMinimumWidth(rect.width())
+        font = QFont()
+        font.setPixelSize(LABEL_SIZE)
+        self.setCurrentFont(font)
+        self.setAcceptRichText(False)
+        self.setFrameStyle(QFrame.NoFrame)
+        self.viewport().setAutoFillBackground(False)
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            self._done(self.toPlainText())
+        elif event.key() == Qt.Key_Escape:
+            self._done()
+        else:
+            super().keyPressEvent(event)
+
+    def focusOutEvent(self, event):
+        self._done(self.toPlainText())
+
+    def run(self, callback=None):
+        if callback:
+            self.commit.connect(callback)
+        self.show()
+        self.setFocus()
+
+    def _done(self, result=None):
+        if result:
+            self.commit.emit(result)
+        self.done.emit()
+        parent = self.parent()
+        self.close()
+        self.destroy()
+        parent.update()
+
+
 class _ShapeTool:
-    def finish(self, position, modifiers=0):
+    def finish(self, widget, position, modifiers=0):
         self.update(position, modifiers)
         if self.erase:
             self.model.erase_rooms(self.shape)
@@ -282,7 +328,7 @@ class SelectTool:
     def update(self, position, modifiers=0):
         pass
 
-    def finish(self, position, modifiers=0):
+    def finish(self, widget, position, modifiers=0):
         pass
 
     def update_modifiers(self, modifiers=0):
@@ -303,7 +349,7 @@ class MoveTool:
     def update(self, position, modifiers=0):
         pass
 
-    def finish(self, position, modifiers=0):
+    def finish(self, widget, position, modifiers=0):
         pass
 
     def update_modifiers(self, modifiers=0):
@@ -317,9 +363,6 @@ class ItemTool:
     icon = _icon('item.svg')
     tooltip = "(I) Item - add items to room"
     shortcut = QKeySequence(Qt.Key_I)
-
-    LABEL_SIZE = 16 #px
-    LABEL_SPACING = 4
 
     @classmethod
     def hover(cls, model, position, modifiers=0):
@@ -345,28 +388,34 @@ class ItemTool:
             raise ToolNotAllowed("ItemTool can only be used inside rooms")
         self.item_pos = _cell_center(pos) if grid_snap else pos
         self.label_pos = pos
+        self.label_rect = None
+        self.done = False
 
     def update(self, position, modifiers=0):
         self.label_pos = Point(*position.toTuple())
         return True
 
-    def finish(self, position, modifiers=0):
-        self.target_room.add_item(Item(
-            self.item_pos,
-            "Item",
-            Point(*position.toTuple()),
-        ))
-        # TODO: edit the label
+    def finish(self, widget, position, modifiers=0):
+        self.done = True
+        def commit(label):
+            self.target_room.add_item(Item(
+                self.item_pos,
+                label,
+                Point(*position.toTuple()),
+            ))
+            widget.update()
+
+        label_editor = LabelEditor(widget, self.label_rect, placeholder="Item")
+        label_editor.run(commit)
+        return label_editor.done
 
     def draw_hint(self, painter, pixel_size):
         self.draw_item_hint(painter, self.item_pos, pixel_size)
-        draw_label(
+        self.label_rect = draw_label(
             painter,
             self.item_pos, self.label_pos,
-            "Item",
+            "" if self.done else "Item",
             pixel_size,
-            font=self.LABEL_SIZE,
-            spacing=self.LABEL_SPACING,
             color=Qt.darkGray
         )
 

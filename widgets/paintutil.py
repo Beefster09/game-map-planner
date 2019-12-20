@@ -39,6 +39,8 @@ def inverse_color(color):
         1 - c.blueF()
     )
 
+LABEL_SIZE = 16 #px
+LABEL_SPACING = 4
 
 def draw_label(
     painter,
@@ -46,9 +48,9 @@ def draw_label(
     text,
     pixel_size=(1,1),
     *,
-    font=16,
+    font=LABEL_SIZE,
     color=Qt.black,
-    spacing=4,
+    spacing=LABEL_SPACING,
 ):
     if isinstance(font, int):
         label_font = QFont()
@@ -58,10 +60,8 @@ def draw_label(
     label_width = QFontMetrics(label_font).width(text) * pixel_size[0]
     label_space = spacing * pixel_size[0]
     if position.distance(target) > 0.5:
-        with new_context(painter):
-            painter.setCompositionMode(QPainter.CompositionMode_Difference)
-            painter.setPen(QPen(inverse_color(color), pixel_size[0] * 2))
-            painter.drawLine(QPointF(*target), QPointF(*position))
+        painter.setPen(QPen(color, pixel_size[0] * 2))
+        painter.drawLine(QPointF(*target), QPointF(*position))
         offset = position - target
         if abs(offset.x) > abs(offset.y):
             label_align = Qt.AlignVCenter
@@ -93,6 +93,7 @@ def draw_label(
     painter.setWorldMatrixEnabled(False)
     painter.drawText(bounding_box, text, label_opts)
     painter.setWorldMatrixEnabled(True)
+    return bounding_box
 
 
 def fill_circle(painter, center, radius, color=Qt.black):

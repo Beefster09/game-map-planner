@@ -27,12 +27,15 @@ class MapDisplay(QFrame):
 
         self.world_to_screen = QTransform().scale(20, 20)
         self.screen_to_world, _ = self.world_to_screen.inverted()
+
         self.model = Map()
         self.current_floor = 0
 
+        self.pan_anchor = None
+
         self.current_tool = None
         self.edit_state = None
-        self.pan_anchor = None
+        self.edit_continued = False
 
         self.filename = None
 
@@ -104,6 +107,9 @@ class MapDisplay(QFrame):
             self.drawFrame(p)
 
     def mousePressEvent(self, event):
+        if self.edit_continued:
+            return
+
         button = event.buttons()
         if button & Qt.MiddleButton:
             self.pan_anchor = self.screen_to_world.map(event.localPos())
@@ -122,7 +128,8 @@ class MapDisplay(QFrame):
         self.update()
 
     def mouseMoveEvent(self, event):
-        should_repaint = False
+        if self.edit_continued:
+            return
 
         if self.pan_anchor:
             pan_target = self.screen_to_world.map(event.localPos())
@@ -147,27 +154,46 @@ class MapDisplay(QFrame):
                 self.update()
 
     def mouseReleaseEvent(self, event):
+        if self.edit_continued:
+            return
+
         button = event.buttons()
         if not (button & Qt.MiddleButton):
             self.pan_anchor = None
 
         if self.edit_state:
-            self.edit_state.finish(
+            continuation = self.edit_state.finish(
+                self,
                 self.screen_to_world.map(event.localPos()),
                 QApplication.keyboardModifiers()
             )
-            self.edit_state = None
-            self.update()
+            if continuation:
+                self.edit_continued = True
+                def _done():
+                    self.edit_continued = False
+                    self.edit_state = None
+                continuation.connect(_done)
+            else:
+                self.edit_state = None
+                self.update()
 
     def keyPressEvent(self, event):
-        if self.edit_state and event.key() in (Qt.Key_Shift, Qt.Key_Control, Qt.Key_Alt):
+        if (
+            not self.edit_continued
+            and self.edit_state
+            and event.key() in (Qt.Key_Shift, Qt.Key_Control, Qt.Key_Alt)
+        ):
             self.edit_state.update_modifiers(QApplication.queryKeyboardModifiers())
             self.update()
         else:
             super().keyPressEvent(event)
 
     def keyReleaseEvent(self, event):
-        if self.edit_state and event.key() in (Qt.Key_Shift, Qt.Key_Control, Qt.Key_Alt):
+        if (
+            not self.edit_continued
+            and self.edit_state
+            and event.key() in (Qt.Key_Shift, Qt.Key_Control, Qt.Key_Alt)
+        ):
             self.edit_state.update_modifiers(QApplication.queryKeyboardModifiers())
             self.update()
         else:
