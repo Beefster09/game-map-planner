@@ -40,7 +40,7 @@ def inverse_color(color):
     )
 
 LABEL_SIZE = 16 #px
-LABEL_SPACING = 4
+LABEL_SPACING = 2
 
 def draw_label(
     painter,

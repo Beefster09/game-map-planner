@@ -20,6 +20,23 @@ class Item:
         else:
             self.label_pos_hint = label_pos_hint
 
+    def to_json(self):
+        return {
+            'label': self.label,
+            'icon': self.icon,
+            'position': self.position,
+            'label_pos_hint': self.label_pos_hint
+        }
+
+    @classmethod
+    def from_json(cls, data):
+        return cls(
+            Point(*data['position']),
+            data['label'],
+            Point(*data['label_pos_hint']) if 'label_pos_hint' in data else None,
+            data.get('icon')
+        )
+
 
 class Door:
     def __init__(self, room1, room2, location, type=None, notes=None):
@@ -137,7 +154,7 @@ class Room:
             'name': self.name,
             'shape': self.shape.to_json(),
             'color': self.color.name(),
-            'items': self._items
+            'items': [item.to_json() for item in self._items]
         }
 
     @classmethod
@@ -145,7 +162,8 @@ class Room:
         room = cls(
             Path.from_json(data['shape']),
             data['name'],
-            QColor(data['color']),
+            QColor(data.get('color', 'white')),
+            [Item.from_json(obj) for obj in data.get('items', [])]
         )
         room._id = data['id']
         return room

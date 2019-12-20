@@ -386,6 +386,7 @@ class ItemTool:
         self.target_room = model.room_at(pos)
         if self.target_room is None:
             raise ToolNotAllowed("ItemTool can only be used inside rooms")
+        # TODO: test for items in the same position
         self.item_pos = _cell_center(pos) if grid_snap else pos
         self.label_pos = pos
         self.label_rect = None
