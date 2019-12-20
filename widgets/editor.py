@@ -17,7 +17,7 @@ GRID_BRUSH = QBrush(QColor(120, 185, 200, 100))
 LeftAndRightButtons = Qt.LeftButton | Qt.RightButton
 
 class MapDisplay(QFrame):
-    def __init__(self):
+    def __init__(self, last_dir=None):
         super().__init__()
         self.setFrameStyle(QFrame.Panel | QFrame.Sunken)
         self.setLineWidth(3)
@@ -215,22 +215,7 @@ class MapDisplay(QFrame):
             self.setCursor(QCursor(Qt.ArrowCursor))
         self.setMouseTracking(hasattr(self.current_tool, 'hover'))
 
-    def save_as(self):
-        filename, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save map as...",
-            os.path.dirname(self.filename) if self.filename else os.path.expanduser('~'),
-            "Maps (*.gmap *.json)",
-        )
-        self._save_model(filename)
-
-    def save(self):
-        if self.filename is None:
-            self.save_as()
-        else:
-            self._save_model()
-
-    def _save_model(self, file=None):
+    def save(self, file=None):
         if file is None:
             file = self.filename
         if file is None:
@@ -238,14 +223,7 @@ class MapDisplay(QFrame):
         self.model.save(file)
         self.filename = file
 
-    def open(self):
-        filename, _ = QFileDialog.getOpenFileName(
-            self,
-            "Open map...",
-            os.path.dirname(self.filename) if self.filename else os.path.expanduser('~'),
-            "Maps (*.gmap *.json)",
-        )
-        self.filename = filename
+    def open(self, filename):
         self.model = Map.load(filename)
         self.update()
 

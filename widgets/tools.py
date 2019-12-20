@@ -20,6 +20,7 @@ update(...) should return True if a repaint is needed
 """
 
 import os.path
+import sys
 from math import floor, ceil
 
 from PySide2.QtCore import Qt, QPoint, QPointF, QRectF, Signal
@@ -31,7 +32,7 @@ from core.model import Room, Item
 from widgets.paintutil import *
 
 
-ICON_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'icons')
+ICON_DIR = os.path.join(sys.path[0], 'icons')
 
 def _icon(name):
     return QIcon(os.path.join(ICON_DIR, name))
