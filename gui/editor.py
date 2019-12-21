@@ -8,7 +8,7 @@ from PySide2.QtGui import *
 from PySide2.QtWidgets import QFrame, QApplication, QMessageBox
 
 from core.model import Map
-from widgets.paintutil import Painter, fill_circle, draw_label
+from gui.paintutil import Painter, fill_circle, draw_label
 
 BLACK_BRUSH = QBrush(QColor('black'))
 WHITE_BRUSH = QBrush(QColor('white'))

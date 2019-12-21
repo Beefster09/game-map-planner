@@ -9,7 +9,7 @@ from PySide2.QtCore import Slot, qApp, Qt
 from PySide2.QtGui import QKeySequence
 from PySide2.QtWidgets import QMainWindow, QAction, QApplication, QFileDialog
 
-from widgets import editor, tools
+from gui import editor, tools, colors
 from core.model import Map, Floor, Room
 
 
@@ -127,6 +127,8 @@ class MapDesigner(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication([])
+
+    colors.init_colors()
 
     widget = MapDesigner()
     widget.show()

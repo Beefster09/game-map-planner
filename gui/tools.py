@@ -29,7 +29,7 @@ from PySide2.QtWidgets import *
 
 from core.geometry import Path, Point, Vector2
 from core.model import Room, Item
-from widgets.paintutil import *
+from gui.paintutil import *
 
 
 ICON_DIR = os.path.join(sys.path[0], 'icons')
