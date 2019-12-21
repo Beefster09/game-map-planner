@@ -25,7 +25,7 @@ from math import floor, ceil
 
 from PySide2.QtCore import Qt, QPoint, QPointF, QRectF, Signal
 from PySide2.QtGui import *
-from PySide2.QtWidgets import QToolBar, QToolButton, QButtonGroup, QTextEdit, QFrame
+from PySide2.QtWidgets import *
 
 from core.geometry import Path, Point, Vector2
 from core.model import Room, Item
@@ -337,6 +337,18 @@ class SelectTool:
 
     def draw_hint(self, painter, pixel_size):
         pass
+
+    @classmethod
+    def context_menu(cls, widget, model, world_pos, widget_pos):
+        room = model.room_at(Point(*world_pos.toTuple()))
+        if room:
+            def _change_color():
+                room.color = QColorDialog.getColor(room.color, widget, "Select Room Color")
+                widget.update()
+            menu = QMenu(widget)
+            menu.addAction("Change Color...", _change_color)
+            # menu.addAction("Change Name...")
+            menu.popup(widget.mapToGlobal(QPoint(*widget_pos.toTuple())))
 
 
 class MoveTool:

@@ -5,7 +5,7 @@ import os.path
 import json
 
 from PySide2.QtGui import *
-from PySide2.QtWidgets import QFrame, QApplication, QFileDialog, QMessageBox
+from PySide2.QtWidgets import QFrame, QApplication, QMessageBox
 
 from core.model import Map
 from widgets.paintutil import Painter, fill_circle, draw_label
@@ -66,7 +66,7 @@ class MapDisplay(QFrame):
             for room in self.model[self.current_floor].rooms():
                 # TODO? Culling
                 p.setPen(QPen(BLACK_BRUSH, self.screen_to_world.m11() * 4))
-                p.setBrush(WHITE_BRUSH)
+                p.setBrush(room.color)
                 p.drawPath(room.get_path())
 
                 for item in room.items:
@@ -115,11 +115,8 @@ class MapDisplay(QFrame):
         world_pos = self.screen_to_world.map(event.localPos())
         if button & Qt.MiddleButton:
             self.pan_anchor = world_pos
-        elif hasattr(self.current_tool, 'context_menu') and button & Qt.RightButton:
-            self.current_tool.context_menu(
-                self.model[self.current_floor],
-                world_pos
-            )
+        elif self.has_context_menu and button & Qt.RightButton:
+            return  # Will context menu on release
         elif button & LeftAndRightButtons:
             if button & LeftAndRightButtons == LeftAndRightButtons:
                 self.edit_state = None
@@ -165,16 +162,19 @@ class MapDisplay(QFrame):
             return
 
         button = event.buttons()
+        world_pos = self.screen_to_world.map(event.localPos())
         if not (button & Qt.MiddleButton):
             self.pan_anchor = None
 
-        if self.edit_state:
+        if self.has_context_menu and event.button() == Qt.RightButton:
+            self.context_menu(world_pos, event.localPos())
+        elif self.edit_state:
             continuation = self.edit_state.finish(
                 self,
-                self.screen_to_world.map(event.localPos()),
+                world_pos,
                 QApplication.keyboardModifiers()
             )
-            if continuation:
+            if continuation:  # and is a Signal
                 self.edit_continued = True
                 def _done():
                     self.edit_continued = False
@@ -212,6 +212,25 @@ class MapDisplay(QFrame):
         self.zoom(2.0 ** zoom_pow, (event.pos()))
 
     # -- misc. signal receivers --
+
+    @property
+    def has_context_menu(self):
+        return (
+            self.edit_state is None and hasattr(self.current_tool, 'context_menu')
+            or hasattr(self.edit_state, 'instance_context_menu')
+        )
+
+    def context_menu(self, world_pos, widget_pos):
+        if self.edit_state:
+            menu = self.edit_state.instance_context_menu
+        else:
+            menu = self.current_tool.context_menu
+        menu(
+            self,
+            self.model[self.current_floor],
+            world_pos,
+            widget_pos,
+        )
 
     def set_tool(self, button):
         self.edit_state = None
