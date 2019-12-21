@@ -21,7 +21,7 @@ update(...) should return True if a repaint is needed
 
 import os.path
 import sys
-from math import floor, ceil
+from math import floor, ceil, modf
 
 from PySide2.QtCore import Qt, QPoint, QPointF, QRectF, Signal
 from PySide2.QtGui import *
@@ -34,6 +34,9 @@ from gui.paintutil import *
 
 ICON_DIR = os.path.join(sys.path[0], 'icons')
 
+VERTICAL = object()
+HORIZONTAL = object()
+
 def _icon(name):
     return QIcon(os.path.join(ICON_DIR, name))
 
@@ -44,6 +47,20 @@ def _cell(point):
 def _cell_center(point):
     x, y = point
     return Point(int(x) + 0.5, int(y) + 0.5)
+
+def _wall(point):
+    x, y = point
+    fract_x, cell_x = modf(x)
+    fract_y, cell_y = modf(y)
+    if abs(fract_x - 0.5) < abs(fract_y - 0.5):
+        wall_x = cell_x + 0.5
+        wall_y = cell_y + round(fract_y)
+        orientation = HORIZONTAL
+    else:
+        wall_y = cell_y + 0.5
+        wall_x = cell_x + round(fract_x)
+        orientation = VERTICAL
+    return Point(wall_x, wall_y), orientation
 
 class ToolNotAllowed(Exception):
     pass
@@ -66,6 +83,7 @@ class LabelEditor(QTextEdit):
         self.setAcceptRichText(False)
         self.setFrameStyle(QFrame.NoFrame)
         self.viewport().setAutoFillBackground(False)
+        self.setContentsMargins(0, 0, 0, 0)
 
     def keyPressEvent(self, event):
         if event.key() in (Qt.Key_Return, Qt.Key_Enter):
@@ -191,9 +209,6 @@ class RectTool(_ShapeTool):
                     Point(ceil(p1.x), ceil(p1.y)),
                     Point(floor(p2.x), floor(p2.y))
                 )
-
-VERTICAL = object()
-HORIZONTAL = object()
 
 class CorridorTool(_ShapeTool):
     icon = _icon('corridor-tool.svg')
@@ -384,7 +399,7 @@ class ItemTool:
             return _cell(position.toTuple()) if grid_snap else position
 
     @classmethod
-    def draw_hover_hint(cls, painter, position, pixel_size, modifiers=0):
+    def draw_hover_hint(cls, painter, model, position, pixel_size, modifiers=0):
         grid_snap = modifiers & Qt.AltModifier == 0
         center = _cell_center(position.toTuple()) if grid_snap else position.toTuple()
         cls.draw_item_hint(painter, center, pixel_size)
@@ -433,10 +448,50 @@ class ItemTool:
             color=Qt.darkGray
         )
 
+
 class DoorTool:
     icon = _icon('door.svg')
     tooltip = "(D) Door - connect adjacent rooms with doors"
     shortcut = QKeySequence(Qt.Key_D)
+
+    @classmethod
+    def hover(cls, model, position, modifiers=0):
+        wall_pos, orientation = _wall(position.toTuple())
+        offset = Point(0.1, 0) if orientation is VERTICAL else Point(0, 0.1)
+        if model.room_at(wall_pos - offset) and model.room_at(wall_pos + offset):
+            return wall_pos
+
+    @classmethod
+    def draw_hover_hint(cls, painter, model, position, pixel_size, modifiers=0):
+        wall_pos, orientation = _wall(position.toTuple())
+        offset = Point(0.1, 0) if orientation is VERTICAL else Point(0, 0.1)
+        room_a = model.room_at(wall_pos - offset)
+        room_b = model.room_at(wall_pos + offset)
+        if room_a is None or room_b is None or room_a is room_b:
+            return
+        if orientation is VERTICAL:
+            left = wall_pos.x - 0.2
+            right = wall_pos.x + 0.2
+            top = wall_pos.y - 0.5
+            bottom = wall_pos.y + 0.5
+            gradient = QLinearGradient(left, wall_pos.y, right, wall_pos.y)
+        else:
+            left = wall_pos.x - 0.5
+            right = wall_pos.x + 0.5
+            top = wall_pos.y - 0.2
+            bottom = wall_pos.y + 0.2
+            gradient = QLinearGradient(wall_pos.x, top, wall_pos.x, bottom)
+        gradient.setColorAt(0, room_a.color)
+        gradient.setColorAt(1, room_b.color)
+        painter.fillRect(QRectF(left, top, right - left, bottom - top), QBrush(gradient))
+        painter.setPen(QPen(Qt.darkGray, pixel_size[0] * 4))
+        if orientation is VERTICAL:
+            painter.drawLine(QPointF(left, top), QPointF(right, top))
+            painter.drawLine(QPointF(left, bottom), QPointF(right, bottom))
+        else:
+            painter.drawLine(QPointF(left, top), QPointF(left, bottom))
+            painter.drawLine(QPointF(right, top), QPointF(right, bottom))
+
 
 # === ToolBar ===
 

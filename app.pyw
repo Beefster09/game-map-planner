@@ -51,6 +51,11 @@ class MapDesigner(QMainWindow):
         self.file_menu.addAction("Exit", self.close, QKeySequence.Quit)
 
         self.edit_menu = self.menu.addMenu("Edit")
+
+        self.edit_menu.addAction("Undo", self.editor.undo, QKeySequence.Undo)
+        self.edit_menu.addAction("Redo", self.editor.redo, QKeySequence("Ctrl+Shift+Z"))
+
+        self.view_menu = self.menu.addMenu("View")
         self.floor_menu = self.menu.addMenu("Floor")
         self.help_menu = self.menu.addMenu("Help")
 

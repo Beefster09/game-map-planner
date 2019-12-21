@@ -36,6 +36,7 @@ class MapDisplay(QFrame):
         self.current_tool = None
         self.edit_state = None
         self.edit_continued = False
+        self.selection = None
 
         self.filename = None
 
@@ -99,6 +100,7 @@ class MapDisplay(QFrame):
             elif self.hover_key:
                 self.current_tool.draw_hover_hint(
                     p,
+                    self.model[self.current_floor],
                     self.hover_position,
                     pixel_size,
                     QApplication.keyboardModifiers()
@@ -233,8 +235,10 @@ class MapDisplay(QFrame):
         )
 
     def set_tool(self, button):
-        self.edit_state = None
         self.current_tool = button.tool
+        self.edit_state = None
+        self.edit_continued = None
+        self.selection = None
         if hasattr(self.current_tool, 'cursor'):
             self.setCursor(QCursor(self.current_tool.cursor))
         else:
@@ -259,3 +263,9 @@ class MapDisplay(QFrame):
         answer = QMessageBox.question(self, "Confirm New Map...", "Are you sure?")
         if answer == QMessageBox.Yes:
             self.model = Map()
+
+    def undo(self):
+        ...  # TODO
+
+    def redo(self):
+        ...  # TODO
