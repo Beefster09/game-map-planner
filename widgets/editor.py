@@ -74,6 +74,7 @@ class MapDisplay(QFrame):
                         pass  # TODO
                     else:
                         fill_circle(p, item.position, 0.3)
+                    # TODO: adjust label positions if offscreen or intersecting other labels.
                     draw_label(p, item.position, item.label_pos_hint, item.label, pixel_size)
 
             # Draw grid lines
@@ -111,15 +112,21 @@ class MapDisplay(QFrame):
             return
 
         button = event.buttons()
+        world_pos = self.screen_to_world.map(event.localPos())
         if button & Qt.MiddleButton:
-            self.pan_anchor = self.screen_to_world.map(event.localPos())
+            self.pan_anchor = world_pos
+        elif hasattr(self.current_tool, 'context_menu') and button & Qt.RightButton:
+            self.current_tool.context_menu(
+                self.model[self.current_floor],
+                world_pos
+            )
         elif button & LeftAndRightButtons:
             if button & LeftAndRightButtons == LeftAndRightButtons:
                 self.edit_state = None
             else:
                 self.edit_state = self.current_tool(
                     self.model[self.current_floor],
-                    self.screen_to_world.map(event.localPos()),
+                    world_pos,
                     button == Qt.RightButton,
                     QApplication.keyboardModifiers()
                 )
@@ -224,6 +231,7 @@ class MapDisplay(QFrame):
         self.filename = file
 
     def open(self, filename):
+        self.filename = filename
         self.model = Map.load(filename)
         self.update()
 

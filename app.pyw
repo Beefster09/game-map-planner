@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import functools
 import itertools
 import os.path
 import sys
@@ -10,6 +11,16 @@ from PySide2.QtWidgets import QMainWindow, QAction, QApplication, QFileDialog
 
 from widgets import editor, tools
 from core.model import Map, Floor, Room
+
+
+def _uniq(seq):
+    seen = set()
+    ret = []
+    for element in seq:
+        if element not in seen:
+            seen.add(element)
+            ret.append(element)
+    return ret
 
 
 class MapDesigner(QMainWindow):
@@ -29,30 +40,19 @@ class MapDesigner(QMainWindow):
         # File Menu
         self.file_menu = self.menu.addMenu("File")
 
-        new_action = QAction("New Map", self)
-        new_action.setShortcut(QKeySequence.New)
-        new_action.triggered.connect(self.editor.new)
-        self.file_menu.addAction(new_action)
+        self.file_menu.addAction("New Map", self.editor.new, QKeySequence.New)
+        self.file_menu.addAction("Open...", self.open, QKeySequence.Open)
 
-        open_action = QAction("Open...", self)
-        open_action.setShortcut(QKeySequence.Open)
-        open_action.triggered.connect(self.open)
-        self.file_menu.addAction(open_action)
+        self.open_recent_menu = self.file_menu.addMenu("Open Recent")
+        self.open_recent_menu.aboutToShow.connect(self._update_open_recent_menu)
 
-        save_action = QAction("Save", self)
-        save_action.setShortcut(QKeySequence.Save)
-        save_action.triggered.connect(self.save)
-        self.file_menu.addAction(save_action)
+        self.file_menu.addAction("Save", self.save, QKeySequence.Save)
+        self.file_menu.addAction("Save As...", self.save_as, QKeySequence("Ctrl+Shift+S"))
+        self.file_menu.addAction("Exit", self.close, QKeySequence.Quit)
 
-        save_as_action = QAction("Save As...", self)
-        save_as_action.setShortcut(QKeySequence("Ctrl+Shift+S"))
-        save_as_action.triggered.connect(self.save_as)
-        self.file_menu.addAction(save_as_action)
-
-        exit_action = QAction("Exit", self)
-        exit_action.setShortcut(QKeySequence.Quit)
-        exit_action.triggered.connect(self.close)
-        self.file_menu.addAction(exit_action)
+        self.edit_menu = self.menu.addMenu("Edit")
+        self.floor_menu = self.menu.addMenu("Floor")
+        self.help_menu = self.menu.addMenu("Help")
 
         # Edit Menu
         # TODO: Undo/Redo
@@ -68,23 +68,26 @@ class MapDesigner(QMainWindow):
             geometry.height() * 0.8
         )
 
-    @classmethod
-    def _get_recent_files(cls):
+    def _get_recent_files(self):
         try:
             with open(os.path.join(sys.path[0], '.recent')) as f:
-                return f.readlines()
+                return _uniq(line.strip() for line in f if line and not line.isspace())
         except OSError:
             print("No recent files found. :(")
             return []
 
-    @classmethod
-    def _update_recent_files(cls, filename):
-        recent = cls._get_recent_files()
+    def _update_recent_files(self, filename):
+        recent = self._get_recent_files()
         if filename in recent:
             recent.remove(filename)
         with open(os.path.join(sys.path[0], '.recent'), 'w') as f:
             for fn in itertools.chain([filename], recent):
                 f.write(fn + '\n')
+
+    def _update_open_recent_menu(self):
+        self.open_recent_menu.clear()
+        for filepath in self._get_recent_files():
+            self.open_recent_menu.addAction(filepath, functools.partial(self.open, filepath))
 
     @property
     def last_dir(self):
@@ -110,13 +113,14 @@ class MapDesigner(QMainWindow):
         self._update_recent_files(filename)
         self.editor.save(filename)
 
-    def open(self):
-        filename, _ = QFileDialog.getOpenFileName(
-            self,
-            "Open map...",
-            self.last_dir,
-            "Maps (*.gmap *.json)",
-        )
+    def open(self, filename=None):
+        if filename is None:
+            filename, _ = QFileDialog.getOpenFileName(
+                self,
+                "Open map...",
+                self.last_dir,
+                "Maps (*.gmap *.json)",
+            )
         self._update_recent_files(filename)
         self.editor.open(filename)
 
