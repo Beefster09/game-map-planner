@@ -6,6 +6,14 @@ from contextlib import contextmanager
 from PySide2.QtCore import Qt, QPoint, QPointF, QRectF
 from PySide2.QtGui import *
 
+from core.geometry import Orientation
+
+
+LABEL_SIZE = 16 #px
+LABEL_SPACING = 2
+LABEL_LINE_THICKNESS = 2
+WALL_THICKNESS = 4
+
 
 class Painter:
     def __init__(self, widget, transform=None):
@@ -39,17 +47,14 @@ def inverse_color(color):
         1 - c.blueF()
     )
 
-LABEL_SIZE = 16 #px
-LABEL_SPACING = 2
-
 def draw_label(
     painter,
     target, position,
     text,
     pixel_size=(1,1),
     *,
-    font=LABEL_SIZE,
     color=Qt.black,
+    font=LABEL_SIZE,
     spacing=LABEL_SPACING,
 ):
     if isinstance(font, int):
@@ -60,7 +65,7 @@ def draw_label(
     label_width = QFontMetrics(label_font).width(text) * pixel_size[0]
     label_space = spacing * pixel_size[0]
     if position.distance(target) > 0.5:
-        painter.setPen(QPen(color, pixel_size[0] * 2))
+        painter.setPen(QPen(color, pixel_size[0] * LABEL_LINE_THICKNESS))
         painter.drawLine(QPointF(*target), QPointF(*position))
         offset = position - target
         if abs(offset.x) > abs(offset.y):
@@ -100,3 +105,40 @@ def fill_circle(painter, center, radius, color=Qt.black):
     path = QPainterPath()
     path.addEllipse(QPointF(*center), radius, radius)
     painter.fillPath(path, QBrush(color))
+
+
+def draw_open_door(
+    painter,
+    position,
+    orientation,
+    pixel_size,
+    extents=(0.5, 0.2),  # width, depth
+    *,
+    room_colors=(Qt.white, Qt.white),
+    wall_color=Qt.black,
+):
+    width, depth = extents
+    if depth <= 0:
+        depth = pixel_size[0] * WALL_THICKNESS
+    if orientation is Orientation.Vertical:
+        left = position.x - depth
+        right = position.x + depth
+        top = position.y - width
+        bottom = position.y + width
+        gradient = QLinearGradient(left, position.y, right, position.y)
+    else:
+        left = position.x - width
+        right = position.x + width
+        top = position.y - depth
+        bottom = position.y + depth
+        gradient = QLinearGradient(position.x, top, position.x, bottom)
+    for i, color in enumerate(room_colors):
+        gradient.setColorAt(i, color)
+    painter.fillRect(QRectF(left, top, right - left, bottom - top), QBrush(gradient))
+    painter.setPen(QPen(wall_color, pixel_size[0] * WALL_THICKNESS))
+    if orientation is Orientation.Vertical:
+        painter.drawLine(QPointF(left, top), QPointF(right, top))
+        painter.drawLine(QPointF(left, bottom), QPointF(right, bottom))
+    else:
+        painter.drawLine(QPointF(left, top), QPointF(left, bottom))
+        painter.drawLine(QPointF(right, top), QPointF(right, bottom))

@@ -4,8 +4,10 @@
 import math
 import itertools
 from collections import namedtuple
+from enum import Enum
 
 from PySide2.QtGui import QPainterPath
+
 
 class Vector2(namedtuple('_Vector2', ['x', 'y'])):
     def cross(self, other):
@@ -20,6 +22,18 @@ class Vector2(namedtuple('_Vector2', ['x', 'y'])):
     def __sub__(self, other):
         return Vector2(self.x - other.x, self.y - other.y)
 
+    def __mul__(self, other):
+        if isinstance(other, self.__class__):
+            return Vector2(self.x * other.x, self.y * other.y)
+        else:
+            return Vector2(self.x * other, self.y * other)
+
+    __rmul__ = __mul__
+
+    @property
+    def transposed(self):
+        return Vector2(self.y, self.x)
+
     @property
     def length_squared(self):
         return self.x * self.x + self.y * self.y
@@ -31,9 +45,17 @@ class Vector2(namedtuple('_Vector2', ['x', 'y'])):
     def distance(self, other):
         return math.hypot(self.x - other.x, self.y - other.y)
 
-
-
 Point = Vector2
+Vector2.Up = Vector2(0, -1)
+Vector2.Down = Vector2(0, 1)
+Vector2.Left = Vector2(-1, 0)
+Vector2.Right = Vector2(1, 0)
+
+
+class Orientation(Enum):
+    Vertical = Vector2(0, 1)
+    Horizontal = Vector2(1, 0)
+
 
 def _rect_to_path_xywh(x, y, w, h):
     return [

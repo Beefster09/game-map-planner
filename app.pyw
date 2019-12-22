@@ -64,7 +64,7 @@ class MapDesigner(QMainWindow):
 
         # Status Bar
         self.status = self.statusBar()
-        self.status.showMessage("Maps are pretty neat")
+        self.editor.status.connect(self.status.showMessage)
 
         # Window dimensions
         geometry = qApp.desktop().availableGeometry(self)

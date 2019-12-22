@@ -4,11 +4,13 @@
 import os.path
 import json
 
+from PySide2.QtCore import Signal
 from PySide2.QtGui import *
 from PySide2.QtWidgets import QFrame, QApplication, QMessageBox
 
 from core.model import Map
-from gui.paintutil import Painter, fill_circle, draw_label
+from gui.paintutil import *
+from gui.tools import ToolNotAllowed
 
 BLACK_BRUSH = QBrush(QColor('black'))
 WHITE_BRUSH = QBrush(QColor('white'))
@@ -16,7 +18,11 @@ GRID_BRUSH = QBrush(QColor(120, 185, 200, 100))
 
 LeftAndRightButtons = Qt.LeftButton | Qt.RightButton
 
+GRID_LINE_THICKNESS = 2
+
 class MapDisplay(QFrame):
+    status = Signal(str)
+
     def __init__(self, last_dir=None):
         super().__init__()
         self.setFrameStyle(QFrame.Panel | QFrame.Sunken)
@@ -64,9 +70,10 @@ class MapDisplay(QFrame):
     def paintEvent(self, event):
         with Painter(self, self.world_to_screen) as p:
             pixel_size = self.screen_to_world.m11(), self.screen_to_world.m22()
+
             for room in self.model[self.current_floor].rooms():
                 # TODO? Culling
-                p.setPen(QPen(BLACK_BRUSH, self.screen_to_world.m11() * 4))
+                p.setPen(QPen(BLACK_BRUSH, self.screen_to_world.m11() * WALL_THICKNESS))
                 p.setBrush(room.color)
                 p.drawPath(room.get_path())
 
@@ -78,22 +85,15 @@ class MapDisplay(QFrame):
                     # TODO: adjust label positions if offscreen or intersecting other labels.
                     draw_label(p, item.position, item.label_pos_hint, item.label, pixel_size)
 
-            # Draw grid lines
-            visible = self.screen_to_world.mapRect(event.rect())
-            top = int(visible.top() - 1)
-            bottom = int(visible.bottom() + 2)
-            left = int(visible.left() - 1)
-            right = int(visible.right() + 2)
-
-            # Vertical Lines
-            p.setPen(QPen(GRID_BRUSH, self.screen_to_world.m11() * 2))
-            for x in range(left, right):
-                p.drawLine(x, top, x, bottom)
-
-            # Horizontal Lines
-            p.setPen(QPen(GRID_BRUSH, self.screen_to_world.m22() * 2))
-            for y in range(top, bottom):
-                p.drawLine(left, y, right, y)
+            for door in self.model[self.current_floor].doors():
+                if door.type is None:
+                    draw_open_door(
+                        p,
+                        door.position,
+                        door.orientation,
+                        pixel_size,
+                        room_colors=door.colors
+                    )
 
             if self.edit_state:
                 self.edit_state.draw_hint(p, pixel_size)
@@ -106,7 +106,24 @@ class MapDisplay(QFrame):
                     QApplication.keyboardModifiers()
                 )
 
-            p.setWorldTransform(QTransform())
+            # Draw grid lines
+            visible = self.screen_to_world.mapRect(event.rect())
+            top = int(visible.top() - 1)
+            bottom = int(visible.bottom() + 2)
+            left = int(visible.left() - 1)
+            right = int(visible.right() + 2)
+
+            # Vertical Lines
+            p.setPen(QPen(GRID_BRUSH, pixel_size[0] * GRID_LINE_THICKNESS))
+            for x in range(left, right):
+                p.drawLine(x, top, x, bottom)
+
+            # Horizontal Lines
+            p.setPen(QPen(GRID_BRUSH, pixel_size[1] * GRID_LINE_THICKNESS))
+            for y in range(top, bottom):
+                p.drawLine(left, y, right, y)
+
+            p.setWorldMatrixEnabled(False)
             self.drawFrame(p)
 
     def mousePressEvent(self, event):
@@ -123,12 +140,15 @@ class MapDisplay(QFrame):
             if button & LeftAndRightButtons == LeftAndRightButtons:
                 self.edit_state = None
             else:
-                self.edit_state = self.current_tool(
-                    self.model[self.current_floor],
-                    world_pos,
-                    button == Qt.RightButton,
-                    QApplication.keyboardModifiers()
-                )
+                try:
+                    self.edit_state = self.current_tool(
+                        self.model[self.current_floor],
+                        world_pos,
+                        button == Qt.RightButton,
+                        QApplication.keyboardModifiers()
+                    )
+                except ToolNotAllowed as nope:
+                    self.status.emit(str(nope))
         else:
             return  # early return to avoid update/repaint
         self.update()

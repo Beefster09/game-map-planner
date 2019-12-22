@@ -8,7 +8,8 @@ from collections import deque
 from PySide2.QtCore import QPoint, QPointF
 from PySide2.QtGui import QColor
 
-from core.geometry import Path, Point
+from core.geometry import Path, Point, Orientation
+
 
 class Item:
     def __init__(self, position, label, label_pos_hint=None, icon=None):
@@ -39,12 +40,39 @@ class Item:
 
 
 class Door:
-    def __init__(self, room1, room2, location, type=None, notes=None):
-        self.rooms = room1, room2
-        self.location = location
+    def __init__(self, position, orientation, rooms, type=None, notes=None):
+        self._rooms = rooms
+        self.position = position
+        self.orientation = orientation
         self.type = type
         self.notes = notes
 
+    @property
+    def colors(self):
+        return tuple(room.color for room in self._rooms)
+
+    def to_json(self):
+        return {
+            'position': self.position,
+            'orientation': self.orientation.name,
+            'rooms': [r.id for r in self._rooms],
+            'type': self.type,
+            'notes': self.notes,
+        }
+
+    @classmethod
+    def from_json(cls, data, rooms_on_floor):
+        def get_room_by_id(id):
+            for room in rooms_on_floor:
+                if room.id == id:
+                    return room
+        return cls(
+            Point(*data['position']),
+            Orientation[data['orientation']],
+            tuple(get_room_by_id(id) for id in data['rooms']),
+            data.get('type'),
+            data.get('notes'),
+        )
 
 class Room:
     def __init__(self, shape, name=None, color=None, items=()):
@@ -67,6 +95,15 @@ class Room:
         self._rewind = 0
 
         self._door_links = []
+
+    def __repr__(self):
+        return f"<Room {self.id[:8]}>"
+
+    def __str__(self):
+        if self._name:
+            return f"'{self._name}' ({self.id[:8]})"
+        else:
+            return repr(self).strip('<>')
 
     def get_path(self):
         return self._shape.qpath
@@ -178,6 +215,9 @@ class Floor:
     def rooms(self):
         yield from self._rooms
 
+    def doors(self):
+        yield from self._doors
+
     def room_at(self, point):
         if isinstance(point, (QPoint, QPointF)):
             point = Point(point.x(), point.y())
@@ -225,6 +265,16 @@ class Floor:
         else:
             self._rooms.append(Room(shape))
 
+    def add_door(self, position, orientation, rooms, type=None):
+        room_a, room_b = rooms
+        if room_a is None or room_b is None or room_a is room_b:
+            raise ValueError(rooms)
+        offset = orientation.value.transposed * 0.2
+        if (position - offset) in room_a.shape and (position + offset) in room_b.shape:
+            self._doors.append(Door(position, orientation, rooms, type))
+        else:
+            raise ValueError("Inconsistency between rooms and door position")
+
     def _remove_shapeless_rooms(self):
         self._rooms = [room for room in self._rooms if room.shape is not None]
         # TODO: rooms with two parts should be split into two rooms
@@ -233,14 +283,15 @@ class Floor:
         return {
             'name': self.name,
             'rooms': [room.to_json() for room in self._rooms],
-            'doors': self._doors,
+            'doors': [door.to_json() for door in self._doors],
         }
 
     @classmethod
     def from_json(cls, data):
+        rooms = [Room.from_json(r) for r in data['rooms']]
         return cls(
-            [Room.from_json(r) for r in data['rooms']],
-            data['doors'],
+            rooms,
+            [Door.from_json(d, rooms) for d in data['doors']],
             name=data['name']
         )
 

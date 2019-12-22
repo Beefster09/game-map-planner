@@ -27,15 +27,16 @@ from PySide2.QtCore import Qt, QPoint, QPointF, QRectF, Signal
 from PySide2.QtGui import *
 from PySide2.QtWidgets import *
 
-from core.geometry import Path, Point, Vector2
+from core.geometry import Path, Point, Vector2, Orientation
 from core.model import Room, Item
 from gui.paintutil import *
 
 
 ICON_DIR = os.path.join(sys.path[0], 'icons')
 
-VERTICAL = object()
-HORIZONTAL = object()
+VERTICAL = Orientation.Vertical
+HORIZONTAL = Orientation.Horizontal
+
 
 def _icon(name):
     return QIcon(os.path.join(ICON_DIR, name))
@@ -209,6 +210,7 @@ class RectTool(_ShapeTool):
                     Point(ceil(p1.x), ceil(p1.y)),
                     Point(floor(p2.x), floor(p2.y))
                 )
+
 
 class CorridorTool(_ShapeTool):
     icon = _icon('corridor-tool.svg')
@@ -413,7 +415,7 @@ class ItemTool:
         pos = Point(*position.toTuple())
         self.target_room = model.room_at(pos)
         if self.target_room is None:
-            raise ToolNotAllowed("ItemTool can only be used inside rooms")
+            raise ToolNotAllowed("Items can only be placed inside rooms.")
         # TODO: test for items in the same position
         self.item_pos = _cell_center(pos) if grid_snap else pos
         self.label_pos = pos
@@ -464,33 +466,54 @@ class DoorTool:
     @classmethod
     def draw_hover_hint(cls, painter, model, position, pixel_size, modifiers=0):
         wall_pos, orientation = _wall(position.toTuple())
-        offset = Point(0.1, 0) if orientation is VERTICAL else Point(0, 0.1)
+        offset = orientation.value.transposed * 0.2
         room_a = model.room_at(wall_pos - offset)
         room_b = model.room_at(wall_pos + offset)
         if room_a is None or room_b is None or room_a is room_b:
             return
-        if orientation is VERTICAL:
-            left = wall_pos.x - 0.2
-            right = wall_pos.x + 0.2
-            top = wall_pos.y - 0.5
-            bottom = wall_pos.y + 0.5
-            gradient = QLinearGradient(left, wall_pos.y, right, wall_pos.y)
-        else:
-            left = wall_pos.x - 0.5
-            right = wall_pos.x + 0.5
-            top = wall_pos.y - 0.2
-            bottom = wall_pos.y + 0.2
-            gradient = QLinearGradient(wall_pos.x, top, wall_pos.x, bottom)
-        gradient.setColorAt(0, room_a.color)
-        gradient.setColorAt(1, room_b.color)
-        painter.fillRect(QRectF(left, top, right - left, bottom - top), QBrush(gradient))
-        painter.setPen(QPen(Qt.darkGray, pixel_size[0] * 4))
-        if orientation is VERTICAL:
-            painter.drawLine(QPointF(left, top), QPointF(right, top))
-            painter.drawLine(QPointF(left, bottom), QPointF(right, bottom))
-        else:
-            painter.drawLine(QPointF(left, top), QPointF(left, bottom))
-            painter.drawLine(QPointF(right, top), QPointF(right, bottom))
+        draw_open_door(
+            painter,
+            wall_pos,
+            orientation,
+            pixel_size,
+            room_colors=(room_a.color, room_b.color),
+            wall_color=Qt.darkGray
+        )
+
+    def __init__(self, model, position, rightclick, modifiers=0):
+        self.w1, self.orientation = _wall(position.toTuple())
+        self.w2 = self.w1
+        offset = self.orientation.value.transposed * 0.2
+        room_a = model.room_at(self.w1 - offset)
+        room_b = model.room_at(self.w1 + offset)
+        if room_a is None or room_b is None or room_a is room_b:
+            raise ToolNotAllowed("Doors can only be placed on walls between two rooms.")
+        self.rooms = room_a, room_b
+        self.model = model
+
+    def update(self, position, modifiers=0):
+        pass  # TODO: widening the door
+
+    def finish(self, widget, position, modifiers=0):
+        self.model.add_door(
+            self.position,
+            self.orientation,
+            self.rooms
+        )
+
+    def draw_hint(self, painter, pixel_size):
+        draw_open_door(
+            painter,
+            self.w1,
+            self.orientation,
+            pixel_size,
+            room_colors=tuple(r.color for r in self.rooms),
+            wall_color=Qt.darkGray
+        )
+
+    @property
+    def position(self):
+        return (self.w1 + self.w2) * 0.5
 
 
 # === ToolBar ===
