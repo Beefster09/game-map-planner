@@ -23,7 +23,7 @@ import os.path
 import sys
 from math import floor, ceil, modf
 
-from PySide2.QtCore import Qt, QPoint, QPointF, QRectF, Signal
+from PySide2.QtCore import Qt, QPoint, QPointF, QRectF, Signal, QSize
 from PySide2.QtGui import *
 from PySide2.QtWidgets import *
 
@@ -179,37 +179,20 @@ class RectTool(_ShapeTool):
         self.update_modifiers(modifiers)
 
     def update(self, position, modifiers=0):
-        old_p2 = _cell(self.p2) # FIXME - does not actually correspond to the shape changing
         self.p2 = Point(*position.toTuple())
-        return self.update_modifiers(modifiers) or not self.grid_snap or old_p2 != _cell(self.p2)
+        self.update_modifiers(modifiers)
+        return True  # TODO: optimize for grid by returning False sometimes
 
     @property
     def shape(self):
         p1, p2 = self.p1, self.p2
         if not self.grid_snap:
             return Path.from_rect(p1, p2)
-        if p1.x < p2.x:
-            if p1.y < p2.y:
-                return Path.from_rect(
-                    Point(floor(p1.x), floor(p1.y)),
-                    Point(ceil(p2.x), ceil(p2.y))
-                )
-            else:
-                return Path.from_rect(
-                    Point(floor(p1.x), ceil(p1.y)),
-                    Point(ceil(p2.x), floor(p2.y))
-                )
-        else:
-            if p1.y < p2.y:
-                return Path.from_rect(
-                    Point(ceil(p1.x), floor(p1.y)),
-                    Point(floor(p2.x), ceil(p2.y))
-                )
-            else:
-                return Path.from_rect(
-                    Point(ceil(p1.x), ceil(p1.y)),
-                    Point(floor(p2.x), floor(p2.y))
-                )
+
+        return Path.from_rect(
+            Point(floor(min(p1.x, p2.x)), floor(min(p1.y, p2.y))),
+            Point(ceil(max(p1.x, p2.x)), ceil(max(p1.y, p2.y)))
+        )
 
 
 class CorridorTool(_ShapeTool):
@@ -535,10 +518,20 @@ class EditingTools(QToolBar):
         ItemTool,
     ]
 
-    def __init__(self, receiver):
+    def __init__(self, receiver, prefix_actions=()):
         super().__init__()
 
         self.setMovable(False)
+        self.setIconSize(QSize(32, 32))
+
+        for entry in prefix_actions:
+            if entry is None:
+                self.addSeparator()
+                continue
+            action, icon_filename = entry
+            self.addAction(action)
+            action.setIcon(_icon(icon_filename))
+        self.addSeparator()
 
         self.edit_group = QButtonGroup()
         self.edit_group.setExclusive(True)
@@ -549,7 +542,7 @@ class EditingTools(QToolBar):
                 self.addSeparator()
                 continue
 
-            tool = QToolButton()
+            tool = QToolButton(self)
             tool.setCheckable(True)
             tool.tool = tool_class
 

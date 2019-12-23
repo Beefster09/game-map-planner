@@ -1,8 +1,9 @@
 """Defines the core editor frame
 """
 
-import os.path
+import functools
 import json
+import os.path
 
 from PySide2.QtCore import Signal
 from PySide2.QtGui import *
@@ -19,6 +20,9 @@ GRID_BRUSH = QBrush(QColor(120, 185, 200, 100))
 LeftAndRightButtons = Qt.LeftButton | Qt.RightButton
 
 GRID_LINE_THICKNESS = 2
+WHEEL_DEGREES_PER_2X_ZOOM = 180
+WHEEL_UNITS_PER_2X_ZOOM = 8 * WHEEL_DEGREES_PER_2X_ZOOM
+TOOLBAR_ZOOM_FACTOR = 15 / WHEEL_DEGREES_PER_2X_ZOOM
 
 class MapDisplay(QFrame):
     status = Signal(str)
@@ -57,7 +61,7 @@ class MapDisplay(QFrame):
     def zoom(self, factor, center=None):
         if center is None:
             cx, cy = self.screen_to_world.map(
-                self.visibleRegion().boundingRect().size() / 2
+                QPointF(*(self.visibleRegion().boundingRect().size() / 2).toTuple())
             ).toTuple()
         else:
             cx, cy = self.screen_to_world.map(center).toTuple()
@@ -66,6 +70,9 @@ class MapDisplay(QFrame):
         self.world_to_screen.translate(-cx, -cy)
         self.screen_to_world, _ = self.world_to_screen.inverted()
         self.update()
+
+    zoom_in = functools.partialmethod(zoom, 2.0 ** TOOLBAR_ZOOM_FACTOR)
+    zoom_out = functools.partialmethod(zoom, 2.0 ** -TOOLBAR_ZOOM_FACTOR)
 
     def paintEvent(self, event):
         with Painter(self, self.world_to_screen) as p:
@@ -230,7 +237,7 @@ class MapDisplay(QFrame):
 
     def wheelEvent(self, event):
         sign = -1 if event.inverted() else 1
-        zoom_pow = sign * event.angleDelta().y() / (8 * 180)
+        zoom_pow = sign * event.angleDelta().y() / (8 * WHEEL_DEGREES_PER_2X_ZOOM)
         self.zoom(2.0 ** zoom_pow, (event.pos()))
 
     # -- misc. signal receivers --
@@ -265,18 +272,30 @@ class MapDisplay(QFrame):
             self.setCursor(QCursor(Qt.ArrowCursor))
         self.setMouseTracking(hasattr(self.current_tool, 'hover'))
 
-    def save(self, file=None):
-        if file is None:
-            file = self.filename
-        if file is None:
-            raise Exception(f"Filename {file} does not exist!")
-        self.model.save(file)
-        self.filename = file
+    def save(self, filename=None):
+        if filename is None:
+            filename = self.filename
+        if filename is None:
+            raise Exception(f"Filename {filename} does not exist!")
+        try:
+            self.model.save(filename)
+        except Exception:
+            traceback.print_exc()
+            self.status.emit
+        else:
+            self.filename = filename
+            self.status.emit(f"Saved '{filename}'")
 
     def open(self, filename):
-        self.filename = filename
-        self.model = Map.load(filename)
-        self.update()
+        try:
+            self.model = Map.load(filename)
+        except Exception:
+            traceback.print_exc()
+            self.status.emit(f"Unable to open '{filename}'")
+        else:
+            self.filename = filename
+            self.update()
+            self.status.emit(f"Opened '{filename}'")
 
     def new(self):
         # TODO: Tabs

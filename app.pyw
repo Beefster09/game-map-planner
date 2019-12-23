@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import functools
 import itertools
 import os.path
@@ -24,7 +25,7 @@ def _uniq(seq):
 
 
 class MapDesigner(QMainWindow):
-    def __init__(self):
+    def __init__(self, file_to_open=None):
         super().__init__()
 
         self.setWindowTitle("Map Designer Tool")
@@ -33,7 +34,6 @@ class MapDesigner(QMainWindow):
 
         self.editor = editor.MapDisplay()
         self.setCentralWidget(self.editor)
-        self.addToolBar(tools.EditingTools(self.editor))
 
         self.menu = self.menuBar()
 
@@ -41,12 +41,12 @@ class MapDesigner(QMainWindow):
         self.file_menu = self.menu.addMenu("File")
 
         self.file_menu.addAction("New Map", self.editor.new, QKeySequence.New)
-        self.file_menu.addAction("Open...", self.open, QKeySequence.Open)
+        open_action = self.file_menu.addAction("Open...", self.open, QKeySequence.Open)
 
         self.open_recent_menu = self.file_menu.addMenu("Open Recent")
         self.open_recent_menu.aboutToShow.connect(self._update_open_recent_menu)
 
-        self.file_menu.addAction("Save", self.save, QKeySequence.Save)
+        save_action = self.file_menu.addAction("Save", self.save, QKeySequence.Save)
         self.file_menu.addAction("Save As...", self.save_as, QKeySequence("Ctrl+Shift+S"))
         self.file_menu.addAction("Exit", self.close, QKeySequence.Quit)
 
@@ -56,11 +56,21 @@ class MapDesigner(QMainWindow):
         self.edit_menu.addAction("Redo", self.editor.redo, QKeySequence("Ctrl+Shift+Z"))
 
         self.view_menu = self.menu.addMenu("View")
+
+        zoom_in = self.view_menu.addAction("Zoom In", self.editor.zoom_in, QKeySequence.ZoomIn)
+        zoom_out = self.view_menu.addAction("Zoom Out", self.editor.zoom_out, QKeySequence.ZoomOut)
+
         self.floor_menu = self.menu.addMenu("Floor")
         self.help_menu = self.menu.addMenu("Help")
 
-        # Edit Menu
-        # TODO: Undo/Redo
+        # Tool bar
+        self.addToolBar(tools.EditingTools(self.editor, [
+            (open_action, 'open.svg'),
+            (save_action, 'save.svg'),
+            None,
+            (zoom_in, 'zoom-in.svg'),
+            (zoom_out, 'zoom-out.svg'),
+        ]))
 
         # Status Bar
         self.status = self.statusBar()
@@ -72,6 +82,9 @@ class MapDesigner(QMainWindow):
             geometry.width() * 0.7,
             geometry.height() * 0.8
         )
+
+        if file_to_open:
+            self.open(file_to_open)
 
     def _get_recent_files(self):
         try:
@@ -115,8 +128,11 @@ class MapDesigner(QMainWindow):
             self.last_dir,
             "Maps (*.gmap *.json)",
         )
-        self._update_recent_files(filename)
-        self.editor.save(filename)
+        if filename:
+            self._update_recent_files(filename)
+            self.editor.save(filename)
+        else:
+            self.status.showMessage("Save as canceled.")
 
     def open(self, filename=None):
         if filename is None:
@@ -126,16 +142,28 @@ class MapDesigner(QMainWindow):
                 self.last_dir,
                 "Maps (*.gmap *.json)",
             )
-        self._update_recent_files(filename)
-        self.editor.open(filename)
+        if filename:
+            self._update_recent_files(filename)
+            self.editor.open(filename)
+        else:
+            self.status.showMessage("File open canceled.")
 
 
-if __name__ == "__main__":
+def main():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('map_file', nargs='?')
+
+    args = parser.parse_args()
+
     app = QApplication([])
 
     colors.init_colors()
 
-    widget = MapDesigner()
+    widget = MapDesigner(args.map_file)
     widget.show()
 
     sys.exit(app.exec_())
+
+if __name__ == "__main__":
+    main()
