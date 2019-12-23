@@ -83,6 +83,9 @@ class MapDesigner(QMainWindow):
             geometry.height() * 0.8
         )
 
+        if file_to_open:
+            self._update_recent_files(file_to_open)
+
     def _get_recent_files(self):
         try:
             with open(os.path.join(sys.path[0], '.recent')) as f:
@@ -115,8 +118,8 @@ class MapDesigner(QMainWindow):
         if self.editor.filename is None:
             self.save_as()
         else:
-            self._update_recent_files(filename)
             self.editor.save()
+            self._update_recent_files(self.editor.filename)
 
     def save_as(self):
         filename, _ = QFileDialog.getSaveFileName(
