@@ -32,7 +32,7 @@ class MapDesigner(QMainWindow):
 
         self.recent_files = self._get_recent_files()
 
-        self.editor = editor.MapDisplay()
+        self.editor = editor.MapDisplay(file_to_open)
         self.setCentralWidget(self.editor)
 
         self.menu = self.menuBar()
@@ -82,9 +82,6 @@ class MapDesigner(QMainWindow):
             geometry.width() * 0.7,
             geometry.height() * 0.8
         )
-
-        if file_to_open:
-            self.open(file_to_open)
 
     def _get_recent_files(self):
         try:

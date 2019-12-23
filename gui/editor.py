@@ -27,7 +27,7 @@ TOOLBAR_ZOOM_FACTOR = 15 / WHEEL_DEGREES_PER_2X_ZOOM
 class MapDisplay(QFrame):
     status = Signal(str)
 
-    def __init__(self, last_dir=None):
+    def __init__(self, filename=None):
         super().__init__()
         self.setFrameStyle(QFrame.Panel | QFrame.Sunken)
         self.setLineWidth(3)
@@ -52,6 +52,14 @@ class MapDisplay(QFrame):
 
         self.hover_key = None
         self.hover_position = None
+
+
+        self._undo_history = []
+        self._undo_index = 0
+        if filename:
+            self.open(filename)
+        else:
+            self._push_model_state()
 
     def pan(self, x, y):
         self.world_to_screen.translate(x, y)
@@ -208,10 +216,12 @@ class MapDisplay(QFrame):
                 def _done():
                     self.edit_continued = False
                     self.edit_state = None
+                    self._push_model_state()
                 continuation.connect(_done)
             else:
                 self.edit_state = None
                 self.update()
+                self._push_model_state()
 
     def keyPressEvent(self, event):
         if (
@@ -296,15 +306,38 @@ class MapDisplay(QFrame):
             self.filename = filename
             self.update()
             self.status.emit(f"Opened '{filename}'")
+            self._push_model_state()
 
     def new(self):
         # TODO: Tabs
         answer = QMessageBox.question(self, "Confirm New Map...", "Are you sure?")
         if answer == QMessageBox.Yes:
             self.model = Map()
+            self._push_model_state()
 
     def undo(self):
-        ...  # TODO
+        if self._undo_index > 0:
+            self._undo_index -= 1
+            filename, floor, state = self._undo_history[self._undo_index]
+            self.model = Map.from_json(json.loads(state))
+            self.filename = filename
+            self.current_floor = floor
+            self.update()
 
     def redo(self):
-        ...  # TODO
+        if self._undo_index < len(self._undo_history) - 1:
+            self._undo_index += 1
+            filename, floor, state = self._undo_history[self._undo_index]
+            self.model = Map.from_json(json.loads(state))
+            self.filename = filename
+            self.current_floor = floor
+            self.update()
+
+    def _push_model_state(self):
+        # Quick and dirty solution - save the map as a json string at each step
+        del self._undo_history[self._undo_index + 1:]
+        state = json.dumps(self.model.to_json())
+        self._undo_history.append(
+            (self.filename, self.current_floor, state)
+        )
+        self._undo_index = len(self._undo_history) - 1

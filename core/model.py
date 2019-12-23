@@ -41,7 +41,7 @@ class Item:
 
 class Door:
     def __init__(self, position, orientation, rooms, type=None, notes=None):
-        self._rooms = rooms
+        self._rooms = a, b = rooms
         self.position = position
         self.orientation = orientation
         self.type = type
@@ -73,6 +73,15 @@ class Door:
             data.get('type'),
             data.get('notes'),
         )
+
+    @property
+    def is_consistent(self):
+        offset = self.orientation.value.transposed * 0.2
+        return (
+            (self.position - offset) in self._rooms[0].shape
+            and (self.position + offset) in self._rooms[1].shape
+        )
+
 
 class Room:
     def __init__(self, shape, name=None, color=None, items=()):
@@ -232,15 +241,16 @@ class Floor:
                     room.shape -= shape
                 else:
                     shape -= room.shape
-        self._rooms.append(Room(shape))
-        self._remove_shapeless_rooms()
+        if shape:
+            self._rooms.append(Room(shape))
+            self._consistency_cleanup()
 
     def erase_rooms(self, shape):
         for room in self._rooms:
             if room.shape.intersects(shape):
                 room.shape -= shape
 
-        self._remove_shapeless_rooms()
+        self._consistency_cleanup()
 
     def expand_room(self, target, shape):
         for room in self._rooms:
@@ -248,7 +258,7 @@ class Floor:
                 room.shape |= shape
             elif room.shape.intersects(shape):
                 room.shape -= shape
-        self._remove_shapeless_rooms()
+        self._consistency_cleanup()
 
     def combine_rooms(self, shape):
         to_combine = [
@@ -261,7 +271,7 @@ class Floor:
             to_combine[0].shape = shape
             for room in to_combine[1:]:
                 room.shape = None
-            self._remove_shapeless_rooms()
+            self._consistency_cleanup()
         else:
             self._rooms.append(Room(shape))
 
@@ -269,14 +279,15 @@ class Floor:
         room_a, room_b = rooms
         if room_a is None or room_b is None or room_a is room_b:
             raise ValueError(rooms)
-        offset = orientation.value.transposed * 0.2
-        if (position - offset) in room_a.shape and (position + offset) in room_b.shape:
-            self._doors.append(Door(position, orientation, rooms, type))
+        door = Door(position, orientation, rooms, type)
+        if door.is_consistent:
+            self._doors.append(door)
         else:
             raise ValueError("Inconsistency between rooms and door position")
 
-    def _remove_shapeless_rooms(self):
+    def _consistency_cleanup(self):
         self._rooms = [room for room in self._rooms if room.shape is not None]
+        self._doors = [door for door in self._doors if door.is_consistent]
         # TODO: rooms with two parts should be split into two rooms
 
     def to_json(self):
