@@ -30,7 +30,7 @@ from PySide2.QtWidgets import *
 from core.geometry import Path, Point, Vector2, Orientation
 from core.model import Room, Item
 from gui import doors
-from gui.paintutil import draw_label, fill_circle
+from gui.paintutil import draw_label, fill_circle, LABEL_SIZE
 
 
 ICON_DIR = os.path.join(sys.path[0], 'icons')

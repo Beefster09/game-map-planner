@@ -47,10 +47,21 @@ class Door:
         self.type = type
         self.notes = notes
         self.extent = size / 2
+        self._deleteme = False
 
     @property
     def colors(self):
         return tuple(room.color for room in self._rooms)
+
+    def remove(self):
+        self._deleteme = True
+
+    def hit_test(self, point, within=0.15):
+        offset = self.position - point
+        return (
+            abs(self.normal.dot(offset)) < within
+            and abs(self.normal.rotated90cw.dot(offset)) < self.extent
+        )
 
     def to_json(self):
         return {
@@ -84,6 +95,8 @@ class Door:
 
     @property
     def is_consistent(self):
+        if self._deleteme:
+            return False
         offset = self.normal * 0.2
         return (
             (self.position - offset) in self._rooms[0].shape
@@ -242,6 +255,13 @@ class Floor:
             if point in room.shape:
                 return room
 
+    def door_at(self, point, within=0.15):
+        if isinstance(point, (QPoint, QPointF)):
+            point = Point(point.x(), point.y())
+        for door in self._doors:
+            if door.hit_test(point, within):
+                return door
+
     def new_room(self, shape, replace=True):
         for room in self._rooms:
             if room.shape.intersects(shape):
@@ -289,7 +309,11 @@ class Floor:
             raise ValueError(rooms)
         door = Door(position, normal, rooms, size, type)
         if door.is_consistent:
+            to_overwrite = self.door_at(position)
+            if to_overwrite:  # TODO: what if the new door overlaps with multiple existing doors?
+                to_overwrite.remove()
             self._doors.append(door)
+            self._consistency_cleanup()
         else:
             raise ValueError("Inconsistency between rooms and door position")
 
