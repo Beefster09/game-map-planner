@@ -62,3 +62,6 @@ BASE_STYLES = {
 }
 
 DEFAULT_STYLE = door_open1
+
+
+# This is where the door style editor will go... eventually

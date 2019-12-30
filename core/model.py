@@ -5,7 +5,7 @@ import json
 import uuid
 from collections import deque
 
-from PySide2.QtCore import QPoint, QPointF
+from PySide2.QtCore import QPoint, QPointF, Qt
 from PySide2.QtGui import QColor
 
 from core.geometry import Path, Point, Orientation, Vector2
@@ -262,7 +262,7 @@ class Floor:
             if door.hit_test(point, within):
                 return door
 
-    def new_room(self, shape, replace=True):
+    def new_room(self, shape, color=Qt.white, *, replace=True):
         for room in self._rooms:
             if room.shape.intersects(shape):
                 if replace:
@@ -270,7 +270,7 @@ class Floor:
                 else:
                     shape -= room.shape
         if shape:
-            self._rooms.append(Room(shape))
+            self._rooms.append(Room(shape, color=color))
             self._consistency_cleanup()
 
     def erase_rooms(self, shape):

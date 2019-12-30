@@ -121,6 +121,8 @@ class LabelEditor(QTextEdit):  # Maybe QLineEdit instead?
 
 
 class _ShapeTool:
+    new_room_color = Qt.white
+
     def finish(self, widget, position, modifiers=0):
         self.update(position, modifiers)
         if self.erase:
@@ -130,7 +132,7 @@ class _ShapeTool:
         elif self.mode == 'combine':
             self.model.combine_rooms(self.shape)
         else:
-            self.model.new_room(self.shape, replace=(self.mode != 'polite'))
+            self.model.new_room(self.shape, self.new_room_color, replace=(self.mode != 'polite'))
 
     def update_modifiers(self, modifiers):
         if hasattr(self, 'mode'):
@@ -480,7 +482,7 @@ class DoorTool:
         def _set_door_style(_):
             cls.new_door_style = style_picker.currentData()
         style_picker.activated.connect(_set_door_style)
-        return [style_picker]
+        return [QLabel("Door Style:"), style_picker]
 
     def __init__(self, model, position, rightclick, modifiers=0):
         self.w1, self.normal = _wall(position.toTuple())
@@ -586,6 +588,15 @@ class EditingTools(QToolBar):
 
         self.addSeparator()
 
+        self.new_room_color = Qt.white
+        self.color_button = QToolButton(self)
+        self.color_pixmap = QPixmap(32, 32)
+        self.color_pixmap.fill()
+        self._select_color(Qt.white)
+        self.color_button.clicked.connect(lambda _=None: self._select_color())
+        self.addWidget(QLabel("New Room Color:"))
+        self.addWidget(self.color_button)
+
         self.subtools = {}
         for t in self.tools:
             if hasattr(t.tool, 'add_toolbar_options'):
@@ -612,3 +623,17 @@ class EditingTools(QToolBar):
         for subtool in self.subtools[tool.tool.__name__]:
             subtool.setVisible(True)
 
+    def _select_color(self, new_color=None):
+        if new_color is None:
+            new_color = QColorDialog.getColor(self.new_room_color, self, "Select Room Color")
+        else:
+            new_color = QColor(new_color)
+        self.color_pixmap.fill(new_color)
+        if new_color.lightnessF() > 0.75:  # TODO? Should use luminance instead of lightness
+            p = QPainter(self.color_pixmap)
+            p.drawRect(0, 0, 31, 31)
+        self.color_button.setIcon(QIcon(self.color_pixmap))
+        self.new_room_color = new_color
+        for tool in self.EDIT_TOOLS:
+            if tool:
+                tool.new_room_color = new_color
