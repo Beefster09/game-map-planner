@@ -107,38 +107,131 @@ def fill_circle(painter, center, radius, color=Qt.black):
     painter.fillPath(path, QBrush(color))
 
 
-def draw_open_door(
-    painter,
-    position,
-    orientation,
-    pixel_size,
-    extents=(0.5, 0.2),  # width, depth
-    *,
-    room_colors=(Qt.white, Qt.white),
-    wall_color=Qt.black,
-):
-    width, depth = extents
-    if depth <= 0:
-        depth = pixel_size[0] * WALL_THICKNESS
-    if orientation is Orientation.Vertical:
-        left = position.x - depth
-        right = position.x + depth
-        top = position.y - width
-        bottom = position.y + width
-        gradient = QLinearGradient(left, position.y, right, position.y)
-    else:
-        left = position.x - width
-        right = position.x + width
-        top = position.y - depth
-        bottom = position.y + depth
-        gradient = QLinearGradient(position.x, top, position.x, bottom)
-    for i, color in enumerate(room_colors):
-        gradient.setColorAt(i, color)
-    painter.fillRect(QRectF(left, top, right - left, bottom - top), QBrush(gradient))
-    painter.setPen(QPen(wall_color, pixel_size[0] * WALL_THICKNESS))
-    if orientation is Orientation.Vertical:
-        painter.drawLine(QPointF(left, top), QPointF(right, top))
-        painter.drawLine(QPointF(left, bottom), QPointF(right, bottom))
-    else:
-        painter.drawLine(QPointF(left, top), QPointF(left, bottom))
-        painter.drawLine(QPointF(right, top), QPointF(right, bottom))
+class DoorStyle:
+    def __init__(
+        self,
+        name,
+        is_open,
+        thickness,
+        commands,
+        use_world_space=True
+    ):
+        self.name = name
+        self.is_open = is_open
+        self.thickness = thickness
+        self.commands = commands
+        self.use_world_space = use_world_space
+
+    def draw(
+        self,
+        painter,
+        position,
+        normal,
+        pixel_size,
+        extent=0.5,
+        *,
+        room_colors=(Qt.white, Qt.white),
+        highlight=0,
+    ):
+        if self.use_world_space:
+            thickness = max(
+                self.thickness,
+                pixel_size[0] * WALL_THICKNESS / 2
+            )
+        else:
+            thickness = self.thickness * pixel_size[orientation.other_index]
+
+        norm = normal * thickness
+        tangent = normal.rotated90cw * extent
+
+        def transform(x, y):
+            return position + x * tangent + y * norm
+
+        if self.is_open:
+            gradient = QLinearGradient(*transform(0, -1), *transform(0, 1))
+            for i, color in enumerate(room_colors):
+                gradient.setColorAt(i, color.lighter(100 + highlight))
+            path = QPainterPath()
+            path.moveTo(*transform(-1, -1))
+            path.lineTo(*transform(-1, 1))
+            path.lineTo(*transform(1, 1))
+            path.lineTo(*transform(1, -1))
+            path.closeSubpath()
+            painter.fillPath(path, QBrush(gradient))
+
+        pen = QPen(QColor.fromHsvF(0, 0, max(highlight/200, 0)), pixel_size[0] * WALL_THICKNESS)
+        path = QPainterPath()
+        for command, *in_args in self.commands:
+            if command == 'draw':
+                painter.setBrush(QColor(*in_args))
+                painter.setPen(pen)
+                painter.drawPath(path)
+                path.clear()
+            elif command == 'fill':
+                painter.fillPath(path, QBrush(QColor(*in_args)))
+                path.clear()
+            elif command == 'stroke':
+                painter.strokePath(path, pen)
+                path.clear()
+            else:
+                getattr(path, command)(*[
+                    QPointF(*transform(*arg))
+                    if isinstance(arg, (tuple, list))
+                    else arg
+                    for arg in in_args
+                ])
+        if not path.isEmpty():
+            painter.strokePath(path, pen)
+
+
+door_open1 = DoorStyle(
+    'open1', True, 0.1,
+    [
+        ['moveTo', (-1, -1)],
+        ['lineTo', (-1, 1)],
+        ['moveTo', (1, -1)],
+        ['lineTo', (1, 1)],
+    ]
+)
+
+door_open2 = DoorStyle(
+    'open2', True, 0,
+    [
+        ['moveTo', (-1, 0)],
+        ['lineTo', (-0.75, 0)],
+        ['moveTo', (1, 0)],
+        ['lineTo', (0.75, 0)],
+    ]
+)
+
+door_locked1 = DoorStyle(
+    'locked1', False, 0.15,
+    [
+        ['moveTo', (-1, -1)],
+        ['lineTo', (-1, 1)],
+        ['moveTo', (1, -1)],
+        ['lineTo', (1, 1)],
+        ['stroke'],
+        ['addEllipse', (0, 0), 0.15, 0.15],
+        ['fill', 'black']
+    ]
+)
+
+door_oneway1 = DoorStyle(
+    'oneway1', False, 0.15,
+    [
+        ['moveTo', (-1, -1)],
+        ['lineTo', (-1, 1)],
+        ['moveTo', (1, -1)],
+        ['lineTo', (1, 1)],
+        ['moveTo', (0, 0)],
+        ['lineTo', (0, 0.75)],
+        ['moveTo', (-0.5, 0)],
+        ['lineTo', (-0.5, 0.75)],
+        ['moveTo', (0.5, 0)],
+        ['lineTo', (0.5, 0.75)],
+    ]
+)
+
+draw_open_door = door_open2.draw
+# draw_open_door = door_oneway1.draw

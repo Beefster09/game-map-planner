@@ -45,6 +45,14 @@ class Vector2(namedtuple('_Vector2', ['x', 'y'])):
     def distance(self, other):
         return math.hypot(self.x - other.x, self.y - other.y)
 
+    @property
+    def rotated90cw(self):
+        return Vector2(-self.y, self.x)
+
+    @property
+    def rotated90ccw(self):
+        return Vector2(self.y, -self.x)
+
 Point = Vector2
 Vector2.Up = Vector2(0, -1)
 Vector2.Down = Vector2(0, 1)
@@ -52,9 +60,18 @@ Vector2.Left = Vector2(-1, 0)
 Vector2.Right = Vector2(1, 0)
 
 
-class Orientation(Enum):
-    Vertical = Vector2(0, 1)
-    Horizontal = Vector2(1, 0)
+class Orientation(namedtuple('_ORIENTATION', ['direction', 'index']), Enum):
+    Horizontal = Vector2(1, 0), 0
+    Vertical = Vector2(0, 1), 1
+
+    @property
+    def value(self):
+        return self.direction
+
+    @property
+    def other_index(self):
+        return 1 - self.index
+
 
 
 def _rect_to_path_xywh(x, y, w, h):

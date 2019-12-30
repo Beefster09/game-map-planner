@@ -21,7 +21,7 @@ update(...) should return True if a repaint is needed
 
 import os.path
 import sys
-from math import floor, ceil, modf
+from math import floor, ceil, modf, copysign
 
 from PySide2.QtCore import Qt, QPoint, QPointF, QRectF, Signal, QSize
 from PySide2.QtGui import *
@@ -56,12 +56,18 @@ def _wall(point):
     if abs(fract_x - 0.5) < abs(fract_y - 0.5):
         wall_x = cell_x + 0.5
         wall_y = cell_y + round(fract_y)
-        orientation = HORIZONTAL
+        normal = Vector2(
+            0,
+            copysign(1, 0.5 - fract_y),
+        )
     else:
         wall_y = cell_y + 0.5
         wall_x = cell_x + round(fract_x)
-        orientation = VERTICAL
-    return Point(wall_x, wall_y), orientation
+        normal = Vector2(
+            copysign(1, 0.5 - fract_x),
+            0
+        )
+    return Point(wall_x, wall_y), normal
 
 class ToolNotAllowed(Exception):
     pass
@@ -441,15 +447,15 @@ class DoorTool:
 
     @classmethod
     def hover(cls, model, position, modifiers=0):
-        wall_pos, orientation = _wall(position.toTuple())
-        offset = Point(0.1, 0) if orientation is VERTICAL else Point(0, 0.1)
+        wall_pos, normal = _wall(position.toTuple())
+        offset = normal * 0.2
         if model.room_at(wall_pos - offset) and model.room_at(wall_pos + offset):
-            return wall_pos
+            return wall_pos, normal
 
     @classmethod
     def draw_hover_hint(cls, painter, model, position, pixel_size, modifiers=0):
-        wall_pos, orientation = _wall(position.toTuple())
-        offset = orientation.value.transposed * 0.2
+        wall_pos, normal = _wall(position.toTuple())
+        offset = normal * 0.2
         room_a = model.room_at(wall_pos - offset)
         room_b = model.room_at(wall_pos + offset)
         if room_a is None or room_b is None or room_a is room_b:
@@ -457,16 +463,16 @@ class DoorTool:
         draw_open_door(
             painter,
             wall_pos,
-            orientation,
+            normal,
             pixel_size,
             room_colors=(room_a.color, room_b.color),
-            wall_color=Qt.darkGray
+            highlight=20
         )
 
     def __init__(self, model, position, rightclick, modifiers=0):
-        self.w1, self.orientation = _wall(position.toTuple())
+        self.w1, self.normal = _wall(position.toTuple())
         self.w2 = self.w1
-        offset = self.orientation.value.transposed * 0.2
+        offset = self.normal * 0.2
         room_a = model.room_at(self.w1 - offset)
         room_b = model.room_at(self.w1 + offset)
         if room_a is None or room_b is None or room_a is room_b:
@@ -480,18 +486,20 @@ class DoorTool:
     def finish(self, widget, position, modifiers=0):
         self.model.add_door(
             self.position,
-            self.orientation,
-            self.rooms
+            self.normal,
+            1,
+            self.rooms,
+            # TODO: type
         )
 
     def draw_hint(self, painter, pixel_size):
         draw_open_door(
             painter,
             self.w1,
-            self.orientation,
+            self.normal,
             pixel_size,
             room_colors=tuple(r.color for r in self.rooms),
-            wall_color=Qt.darkGray
+            highlight=50
         )
 
     @property

@@ -8,7 +8,7 @@ from collections import deque
 from PySide2.QtCore import QPoint, QPointF
 from PySide2.QtGui import QColor
 
-from core.geometry import Path, Point, Orientation
+from core.geometry import Path, Point, Orientation, Vector2
 
 
 class Item:
@@ -40,12 +40,13 @@ class Item:
 
 
 class Door:
-    def __init__(self, position, orientation, rooms, type=None, notes=None):
+    def __init__(self, position, normal, rooms, size=1, type=None, notes=None):
         self._rooms = a, b = rooms
         self.position = position
-        self.orientation = orientation
+        self.normal = normal
         self.type = type
         self.notes = notes
+        self.extent = size / 2
 
     @property
     def colors(self):
@@ -54,7 +55,8 @@ class Door:
     def to_json(self):
         return {
             'position': self.position,
-            'orientation': self.orientation.name,
+            'normal': self.normal,
+            'size': self.extent * 2,
             'rooms': [r.id for r in self._rooms],
             'type': self.type,
             'notes': self.notes,
@@ -66,17 +68,23 @@ class Door:
             for room in rooms_on_floor:
                 if room.id == id:
                     return room
+        normal = (
+            Vector2(*data['normal'])
+            if 'normal' in data else
+            Orientation[data['orientation']].value.transposed
+        )
         return cls(
             Point(*data['position']),
-            Orientation[data['orientation']],
+            normal,
             tuple(get_room_by_id(id) for id in data['rooms']),
+            data.get('size', 1),
             data.get('type'),
             data.get('notes'),
         )
 
     @property
     def is_consistent(self):
-        offset = self.orientation.value.transposed * 0.2
+        offset = self.normal * 0.2
         return (
             (self.position - offset) in self._rooms[0].shape
             and (self.position + offset) in self._rooms[1].shape
@@ -275,11 +283,11 @@ class Floor:
         else:
             self._rooms.append(Room(shape))
 
-    def add_door(self, position, orientation, rooms, type=None):
+    def add_door(self, position, normal, size, rooms, type=None):
         room_a, room_b = rooms
         if room_a is None or room_b is None or room_a is room_b:
             raise ValueError(rooms)
-        door = Door(position, orientation, rooms, type)
+        door = Door(position, normal, rooms, size, type)
         if door.is_consistent:
             self._doors.append(door)
         else:

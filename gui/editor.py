@@ -105,8 +105,9 @@ class MapDisplay(QFrame):
                     draw_open_door(
                         p,
                         door.position,
-                        door.orientation,
+                        door.normal,
                         pixel_size,
+                        door.extent,
                         room_colors=door.colors
                     )
 
@@ -147,6 +148,7 @@ class MapDisplay(QFrame):
 
         button = event.buttons()
         world_pos = self.screen_to_world.map(event.localPos())
+        # TODO: Selections for tools that allow it
         if button & Qt.MiddleButton:
             self.pan_anchor = world_pos
         elif self.has_context_menu and button & Qt.RightButton:
