@@ -12,6 +12,7 @@ from PySide2.QtWidgets import QFrame, QApplication, QMessageBox
 from core.model import Map
 from gui.paintutil import *
 from gui.tools import ToolNotAllowed
+from gui import doors
 
 BLACK_BRUSH = QBrush(QColor('black'))
 WHITE_BRUSH = QBrush(QColor('white'))
@@ -101,15 +102,15 @@ class MapDisplay(QFrame):
                     draw_label(p, item.position, item.label_pos_hint, item.label, pixel_size)
 
             for door in self.model[self.current_floor].doors():
-                if door.type is None:
-                    draw_open_door(
-                        p,
-                        door.position,
-                        door.normal,
-                        pixel_size,
-                        door.extent,
-                        room_colors=door.colors
-                    )
+                door_style = doors.BASE_STYLES.get(door.type, doors.DEFAULT_STYLE)
+                door_style.draw(
+                    p,
+                    door.position,
+                    door.normal,
+                    pixel_size,
+                    door.extent,
+                    room_colors=door.colors
+                )
 
             if self.edit_state:
                 self.edit_state.draw_hint(p, pixel_size)

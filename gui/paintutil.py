@@ -110,12 +110,14 @@ def fill_circle(painter, center, radius, color=Qt.black):
 class DoorStyle:
     def __init__(
         self,
+        id,
         name,
         is_open,
         thickness,
         commands,
         use_world_space=True
     ):
+        self.id = id
         self.name = name
         self.is_open = is_open
         self.thickness = thickness
@@ -183,55 +185,3 @@ class DoorStyle:
         if not path.isEmpty():
             painter.strokePath(path, pen)
 
-
-door_open1 = DoorStyle(
-    'open1', True, 0.1,
-    [
-        ['moveTo', (-1, -1)],
-        ['lineTo', (-1, 1)],
-        ['moveTo', (1, -1)],
-        ['lineTo', (1, 1)],
-    ]
-)
-
-door_open2 = DoorStyle(
-    'open2', True, 0,
-    [
-        ['moveTo', (-1, 0)],
-        ['lineTo', (-0.75, 0)],
-        ['moveTo', (1, 0)],
-        ['lineTo', (0.75, 0)],
-    ]
-)
-
-door_locked1 = DoorStyle(
-    'locked1', False, 0.15,
-    [
-        ['moveTo', (-1, -1)],
-        ['lineTo', (-1, 1)],
-        ['moveTo', (1, -1)],
-        ['lineTo', (1, 1)],
-        ['stroke'],
-        ['addEllipse', (0, 0), 0.15, 0.15],
-        ['fill', 'black']
-    ]
-)
-
-door_oneway1 = DoorStyle(
-    'oneway1', False, 0.15,
-    [
-        ['moveTo', (-1, -1)],
-        ['lineTo', (-1, 1)],
-        ['moveTo', (1, -1)],
-        ['lineTo', (1, 1)],
-        ['moveTo', (0, 0)],
-        ['lineTo', (0, 0.75)],
-        ['moveTo', (-0.5, 0)],
-        ['lineTo', (-0.5, 0.75)],
-        ['moveTo', (0.5, 0)],
-        ['lineTo', (0.5, 0.75)],
-    ]
-)
-
-draw_open_door = door_open2.draw
-# draw_open_door = door_oneway1.draw

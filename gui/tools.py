@@ -29,7 +29,8 @@ from PySide2.QtWidgets import *
 
 from core.geometry import Path, Point, Vector2, Orientation
 from core.model import Room, Item
-from gui.paintutil import *
+from gui import doors
+from gui.paintutil import draw_label, fill_circle
 
 
 ICON_DIR = os.path.join(sys.path[0], 'icons')
@@ -73,7 +74,7 @@ class ToolNotAllowed(Exception):
     pass
 
 
-class LabelEditor(QTextEdit):
+class LabelEditor(QTextEdit):  # Maybe QLineEdit instead?
     commit = Signal(str)
     done = Signal()
 
@@ -445,6 +446,8 @@ class DoorTool:
     tooltip = "(D) Door - connect adjacent rooms with doors"
     shortcut = QKeySequence(Qt.Key_D)
 
+    new_door_style = doors.DEFAULT_STYLE
+
     @classmethod
     def hover(cls, model, position, modifiers=0):
         wall_pos, normal = _wall(position.toTuple())
@@ -460,14 +463,24 @@ class DoorTool:
         room_b = model.room_at(wall_pos + offset)
         if room_a is None or room_b is None or room_a is room_b:
             return
-        draw_open_door(
+        cls.new_door_style.draw(
             painter,
             wall_pos,
             normal,
             pixel_size,
             room_colors=(room_a.color, room_b.color),
-            highlight=20
+            highlight=75
         )
+
+    @classmethod
+    def add_toolbar_options(cls, parent):
+        style_picker = QComboBox()
+        for door_style in doors.BASE_STYLES.values():
+            style_picker.addItem(door_style.name, door_style)
+        def _set_door_style(_):
+            cls.new_door_style = style_picker.currentData()
+        style_picker.activated.connect(_set_door_style)
+        return [style_picker]
 
     def __init__(self, model, position, rightclick, modifiers=0):
         self.w1, self.normal = _wall(position.toTuple())
@@ -489,11 +502,11 @@ class DoorTool:
             self.normal,
             1,
             self.rooms,
-            # TODO: type
+            type=self.new_door_style.id,
         )
 
     def draw_hint(self, painter, pixel_size):
-        draw_open_door(
+        self.new_door_style.draw(
             painter,
             self.w1,
             self.normal,
@@ -571,5 +584,31 @@ class EditingTools(QToolBar):
             self.addWidget(tool)
             self.tools.append(tool)
 
+        self.addSeparator()
+
+        self.subtools = {}
+        for t in self.tools:
+            if hasattr(t.tool, 'add_toolbar_options'):
+                subtools = t.tool.add_toolbar_options(self)
+                actions = []
+                for subtool in subtools:
+                    action = self.addWidget(subtool)
+                    action.setVisible(False)
+                    actions.append(action)
+                self.subtools[t.tool.__name__] = actions
+            else:
+                self.subtools[t.tool.__name__] = []
+
+        self.active_tool = None
         self.edit_group.buttonClicked.connect(receiver.set_tool)
+        self.edit_group.buttonClicked.connect(self._set_tool)
         self.tools[0].click()
+
+    def _set_tool(self, tool):
+        if self.active_tool:
+            for subtool in self.subtools[self.active_tool.__name__]:
+                subtool.setVisible(False)
+        self.active_tool = tool.tool
+        for subtool in self.subtools[tool.tool.__name__]:
+            subtool.setVisible(True)
+
