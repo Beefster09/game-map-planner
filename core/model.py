@@ -56,6 +56,11 @@ class Door:
     def remove(self):
         self._deleteme = True
 
+    def flip(self):
+        self.normal = -self.normal
+        a, b = self._rooms
+        self._rooms = b, a
+
     def hit_test(self, point, within=0.15):
         offset = self.position - point
         return (

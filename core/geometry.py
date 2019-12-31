@@ -28,6 +28,9 @@ class Vector2(namedtuple('_Vector2', ['x', 'y'])):
         else:
             return Vector2(self.x * other, self.y * other)
 
+    def __neg__(self):
+        return Vector2(-self.x, -self.y)
+
     __rmul__ = __mul__
 
     @property

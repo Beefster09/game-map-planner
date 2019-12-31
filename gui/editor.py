@@ -262,6 +262,10 @@ class MapDisplay(QFrame):
             or hasattr(self.edit_state, 'instance_context_menu')
         )
 
+    def on_changed(self):
+        self._push_model_state()
+        self.update()
+
     def context_menu(self, world_pos, widget_pos):
         if self.edit_state:
             menu = self.edit_state.instance_context_menu

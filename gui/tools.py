@@ -349,15 +349,60 @@ class SelectTool:
 
     @classmethod
     def context_menu(cls, widget, model, world_pos, widget_pos):
-        room = model.room_at(Point(*world_pos.toTuple()))
+        point = Point(*world_pos.toTuple())
+        item = model.item_at(point)
+        if item:
+            cls._item_menu(widget, item, widget.mapToGlobal(QPoint(*widget_pos.toTuple())))
+            return
+        door = model.door_at(point)
+        if door:
+            cls._door_menu(widget, door, widget.mapToGlobal(QPoint(*widget_pos.toTuple())))
+            return
+        room = model.room_at(point)
         if room:
-            def _change_color():
-                room.color = QColorDialog.getColor(room.color, widget, "Select Room Color")
-                widget.update()
-            menu = QMenu(widget)
-            menu.addAction("Change Color...", _change_color)
-            # menu.addAction("Change Name...")
-            menu.popup(widget.mapToGlobal(QPoint(*widget_pos.toTuple())))
+            cls._room_menu(widget, room, widget.mapToGlobal(QPoint(*widget_pos.toTuple())))
+            return
+
+    @classmethod
+    def _item_menu(cls, widget, item, popup_position):
+        def _change_label():
+            new_label, valid = QInputDialog.getText(widget, "Item Label", 'Label')
+            if valid:
+                item.label = new_label
+                widget.on_changed()
+        menu = QMenu(widget)
+        menu.addAction("Change Label...", _change_label)
+        menu.popup(popup_position)
+
+    @classmethod
+    def _door_menu(cls, widget, door, popup_position):
+        def _change_style():
+            door.type = QInputDialog.getItem(
+                widget,
+                "Select Door Style",
+                'Style',
+                list(doors.BASE_STYLES),
+                # TODO: actually have the correct one selected initially
+            )
+            widget.on_changed()
+        def _flip():
+            door.flip()
+            widget.on_changed()
+        menu = QMenu(widget)
+        menu.addAction("Change Style...", _change_style)
+        menu.addAction("Flip", _flip)
+        menu.popup(popup_position)
+
+    @classmethod
+    def _room_menu(cls, widget, room, popup_position):
+        def _change_color():
+            room.color = QColorDialog.getColor(room.color, widget, "Select Room Color")
+            widget.on_changed()
+        menu = QMenu(widget)
+        menu.addAction("Change Color...", _change_color)
+        # menu.addAction("Change Name...")
+        menu.popup(popup_position)
+
 
 
 class MoveTool:
