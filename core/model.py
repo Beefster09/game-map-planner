@@ -103,6 +103,29 @@ class Door:
             and (self.position + offset) in self._rooms[1].shape
         )
 
+    def make_consistent(self):
+        offset = self.normal * 0.2
+        room_a, room_b = self._rooms
+        back = (self.position - offset)
+        front = (self.position + offset)
+        if back not in room_a.shape:
+            for room in room_a.derivatives:
+                if back in room.shape:
+                    room_a = room
+                    break
+            else:
+                self._deleteme = True
+                return
+        if front not in room_b.shape:
+            for room in room_b.derivatives:
+                if front in room.shape:
+                    room_b = room
+                    break
+            else:
+                self._deleteme = True
+                return
+        self._rooms = room_a, room_b
+
 
 class Room:
     def __init__(self, shape, name=None, color=None, items=()):
@@ -116,15 +139,15 @@ class Room:
                 self._shape = Path(*shape)
         else:
             raise TypeError(shape)
-        self._name = name
-        self._color = color or QColor('white')
+        self.name = name
+        self.color = color or QColor('white')
         self._items = list(items)
 
         # For internal use (e.g. undo/redo, room links)
-        self._undo_history = []
-        self._rewind = 0
+        self._room_split = None
 
         self._door_links = []
+        self._derivatives = []
 
     def __repr__(self):
         return f"<Room {self.id[:8]}>"
@@ -139,45 +162,35 @@ class Room:
         return self._shape.qpath
 
     def add_item(self, item):
+        to_delete = self.item_at(item.position)
+        self._items = [item for item in self._items if item is not to_delete]
         self._items.append(item)
 
-    # -- undo/redo --
+    def item_at(self, point, within=0.45):
+        for item in self._items:
+            if item.position.distance(point) < within:
+                return item
 
-    def undo(self):
-        self._rewind -= 1
-        prev_values = self._undo_history[self._rewind]
-        old_values = {
-            attr: getattr(self, '_' + attr)
-            for attr in old_values
-        }
-        self._undo_history[self._rewind] = old_values
-        for attr, value in prev_values.items():
-            setattr(self, '_' + attr, value)
-
-    def redo(self):
-        if self._rewind >= 0:
-            return  # raise error?
-        next_values = self._undo_history[self._rewind]
-        old_values = {
-            attr: getattr(self, '_' + attr)
-            for attr in old_values
-        }
-        self._undo_history[self._rewind] = old_values
-        for attr, value in next_values.items():
-            setattr(self, '_' + attr, value)
-        self._rewind += 1
-
-    def update(self, **new_values):
-        if self._rewind:
-            del self._undo_history[self._rewind:]
-            self._rewind = 0
-        old_values = {
-            attr: getattr(self, '_' + attr)
-            for attr in new_values
-        }
-        self._undo_history.append(old_values)
-        for attr, value in new_values.items():
-            setattr(self, '_' + attr, value)
+    def split_if_needed(self):
+        """WARNING: this mutates the room in place as well as creating new rooms!"""
+        if self._room_split is None:
+            self._room_split = self._shape.shapes()
+        if len(self._room_split) > 1:
+            # TODO: make this transactional (to be exception-safe)
+            all_items = self._items
+            self._shape, *rest = self._room_split
+            self._items = [item for item in all_items if item.position in self._shape]
+            self._room_split = None
+            self._derivatives = [
+                self.__class__(
+                    shape,
+                    name=f"{self.name} ({i})",
+                    color=self.color,
+                    items=(item for item in all_items if item.position in shape)
+                )
+                for i, shape in enumerate(rest)
+            ]
+            return self._derivatives
 
     # -- properties --
 
@@ -187,23 +200,8 @@ class Room:
 
     @shape.setter
     def shape(self, value):
-        self.update(shape=value)
-
-    @property
-    def name(self):
-        return self._name
-
-    @name.setter
-    def name(self, value):
-        self.update(name=value)
-
-    @property
-    def color(self):
-        return self._color
-
-    @color.setter
-    def color(self, value):
-        self.update(color=value)
+        self._shape = value
+        self._room_split = None
 
     @property
     def id(self):
@@ -211,7 +209,11 @@ class Room:
 
     @property
     def items(self):
-        return self._items
+        yield from self._items
+
+    @property
+    def derivatives(self):
+        yield from self._derivatives
 
     # -- conversions --
 
@@ -261,6 +263,11 @@ class Floor:
         for door in self._doors:
             if door.hit_test(point, within):
                 return door
+
+    def item_at(self, point, within=0.45):
+        room = self.room_at(point)
+        if room:
+            return room.item_at(point, within)
 
     def new_room(self, shape, color=Qt.white, *, replace=True):
         for room in self._rooms:
@@ -319,8 +326,13 @@ class Floor:
 
     def _consistency_cleanup(self):
         self._rooms = [room for room in self._rooms if room.shape is not None]
+        new_rooms = []
+        for room in self._rooms:
+            new_rooms.extend(room.split_if_needed() or [])
+        self._rooms.extend(new_rooms)
+        for door in self._doors:
+            door.make_consistent()
         self._doors = [door for door in self._doors if door.is_consistent]
-        # TODO: rooms with two parts should be split into two rooms
 
     def to_json(self):
         return {

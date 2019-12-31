@@ -127,6 +127,29 @@ def _point_of_intersection(p11, p12, p21, p22):
     else:
         return None
 
+def _x_at_y(p1, p2, y):
+    vec = p2 - p1
+    dy = y - p1.y
+    return p1.x + (dy / vec.y) * vec.x
+
+def _left_raycast(p1, p2, point):
+    point_inside = False
+    if p1.y == p2.y or point.x < p1.x and point.x < p2.x:
+        return False # ignore horizontal lines and degenerate segments
+    miny = min(p1.y, p2.y)
+    maxy = max(p1.y, p2.y)
+    if point.y < miny or point.y > maxy:
+        return False
+    maxx = max(p1.x, p2.x)
+    return point.x > maxx or point.x > _x_at_y(p1, p2, point.y)
+
+def _polygon_contains(polygon, point):
+    point_inside = False
+    for p1, p2 in polygon:
+        if _left_raycast(p1, p2, point):
+            point_inside = not point_inside
+    return point_inside
+
 class Path:
     """Representation of the shape of a room. Pseudo-immutable.
     """
@@ -147,6 +170,20 @@ class Path:
             self._bounding_box = min(all_x), min(all_y), max(all_x), max(all_y)
         return self._bounding_box
 
+    def shapes(self):
+        shapes = [[0]]
+        for i in range(1, len(self._subpaths)):
+            for shape in shapes:
+                if _polygon_contains(self.segments(shape[0]), self._subpaths[i][0]):
+                    shape.append(i)
+                    break
+            else:
+                shapes.append([i])
+        return [
+            self.__class__(*[self._subpaths[path] for path in shape])
+            for shape in shapes
+        ]
+
     def segments(self, which=Ellipsis):
         if which is Ellipsis:
             for subpath in self._subpaths:
@@ -159,8 +196,11 @@ class Path:
             for i in range(l):
                 yield (subpath[i], subpath[(i + 1) % l])
 
-    def points(self):
-        yield from itertools.chain.from_iterable(self._subpaths)
+    def points(self, which=Ellipsis):
+        if which is Ellipsis:
+            yield from itertools.chain.from_iterable(self._subpaths)
+        else:
+            yield from self._subpaths[which]
 
     def __contains__(self, point):
         """Exclusive point membership test - does not count colinear points or segments
@@ -170,23 +210,7 @@ class Path:
         minx, miny, maxx, maxy = self.bounding_box
         if point.x < minx or point.x > maxx or point.y < miny or point.y > maxy:
             return False
-        def _x_at_y(p1, p2, y):
-            vec = p2 - p1
-            dy = y - p1.y
-            return p1.x + (dy / vec.y) * vec.x
-        point_inside = False
-        for segment in self.segments():
-            p1, p2 = segment
-            if p1.y == p2.y or point.x < p1.x and point.x < p2.x:
-                continue # ignore horizontal lines and degenerate segments
-            miny = min(p1.y, p2.y)
-            maxy = max(p1.y, p2.y)
-            if point.y < miny or point.y > maxy:
-                continue
-            maxx = max(p1.x, p2.x)
-            if point.x > maxx or point.x > _x_at_y(p1, p2, point.y):
-                point_inside = not point_inside
-        return point_inside
+        return _polygon_contains(self.segments(), point)
 
     def union(self, other):
         return self.from_qpath(self.qpath | other.qpath)
