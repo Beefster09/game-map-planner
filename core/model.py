@@ -113,7 +113,7 @@ class Door:
         room_a, room_b = self._rooms
         back = (self.position - offset)
         front = (self.position + offset)
-        if back not in room_a.shape:
+        if room_a.shape is None or back not in room_a.shape:
             for room in room_a.derivatives:
                 if back in room.shape:
                     room_a = room
@@ -121,7 +121,7 @@ class Door:
             else:
                 self._deleteme = True
                 return
-        if front not in room_b.shape:
+        if room_b.shape is None or front not in room_b.shape:
             for room in room_b.derivatives:
                 if front in room.shape:
                     room_b = room
@@ -171,6 +171,9 @@ class Room:
         self._items = [item for item in self._items if item is not to_delete]
         self._items.append(item)
 
+    def remove_item(self, item):
+        self._items.remove(item)
+
     def item_at(self, point, within=0.45):
         for item in self._items:
             if item.position.distance(point) < within:
@@ -178,6 +181,9 @@ class Room:
 
     def split_if_needed(self):
         """WARNING: this mutates the room in place as well as creating new rooms!"""
+        if not self._shape:
+            self._derivatives = []
+            return None
         if self._room_split is None:
             self._room_split = self._shape.shapes()
         if len(self._room_split) > 1:
@@ -315,6 +321,10 @@ class Floor:
         else:
             self._rooms.append(Room(shape))
 
+    def remove_room(self, room):
+        room.shape = None
+        self._consistency_cleanup()
+
     def add_door(self, position, normal, size, rooms, type=None):
         room_a, room_b = rooms
         if room_a is None or room_b is None or room_a is room_b:
@@ -328,6 +338,9 @@ class Floor:
             self._consistency_cleanup()
         else:
             raise ValueError("Inconsistency between rooms and door position")
+
+    def remove_door(self, door):
+        self._doors.remove(door)
 
     def _consistency_cleanup(self):
         self._rooms = [room for room in self._rooms if room.shape is not None]

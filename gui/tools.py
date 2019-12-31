@@ -350,32 +350,36 @@ class SelectTool:
     @classmethod
     def context_menu(cls, widget, model, world_pos, widget_pos):
         point = Point(*world_pos.toTuple())
-        item = model.item_at(point)
+        room = model.room_at(point)
+        item = room.item_at(point)
         if item:
-            cls._item_menu(widget, item, widget.mapToGlobal(QPoint(*widget_pos.toTuple())))
+            cls._item_menu(widget, room, item, widget.mapToGlobal(QPoint(*widget_pos.toTuple())))
             return
         door = model.door_at(point)
         if door:
-            cls._door_menu(widget, door, widget.mapToGlobal(QPoint(*widget_pos.toTuple())))
+            cls._door_menu(widget, model, door, widget.mapToGlobal(QPoint(*widget_pos.toTuple())))
             return
-        room = model.room_at(point)
         if room:
-            cls._room_menu(widget, room, widget.mapToGlobal(QPoint(*widget_pos.toTuple())))
+            cls._room_menu(widget, model, room, widget.mapToGlobal(QPoint(*widget_pos.toTuple())))
             return
 
     @classmethod
-    def _item_menu(cls, widget, item, popup_position):
+    def _item_menu(cls, widget, room, item, popup_position):
         def _change_label():
             new_label, valid = QInputDialog.getText(widget, "Item Label", 'Label')
             if valid:
                 item.label = new_label
                 widget.on_changed()
+        def _remove():
+            room.remove_item(item)
+            widget.on_changed()
         menu = QMenu(widget)
         menu.addAction("Change Label...", _change_label)
+        menu.addAction("Remove", _remove)
         menu.popup(popup_position)
 
     @classmethod
-    def _door_menu(cls, widget, door, popup_position):
+    def _door_menu(cls, widget, model, door, popup_position):
         def _change_style():
             door.type = QInputDialog.getItem(
                 widget,
@@ -388,19 +392,27 @@ class SelectTool:
         def _flip():
             door.flip()
             widget.on_changed()
+        def _remove():
+            model.remove_door(door)
+            widget.on_changed()
         menu = QMenu(widget)
         menu.addAction("Change Style...", _change_style)
         menu.addAction("Flip", _flip)
+        menu.addAction("Remove", _remove)
         menu.popup(popup_position)
 
     @classmethod
-    def _room_menu(cls, widget, room, popup_position):
+    def _room_menu(cls, widget, model, room, popup_position):
         def _change_color():
             room.color = QColorDialog.getColor(room.color, widget, "Select Room Color")
+            widget.on_changed()
+        def _remove():
+            model.remove_room(room)
             widget.on_changed()
         menu = QMenu(widget)
         menu.addAction("Change Color...", _change_color)
         # menu.addAction("Change Name...")
+        menu.addAction("Remove", _remove)
         menu.popup(popup_position)
 
 

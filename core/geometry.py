@@ -27,11 +27,10 @@ class Vector2(namedtuple('_Vector2', ['x', 'y'])):
             return Vector2(self.x * other.x, self.y * other.y)
         else:
             return Vector2(self.x * other, self.y * other)
+    __rmul__ = __mul__
 
     def __neg__(self):
         return Vector2(-self.x, -self.y)
-
-    __rmul__ = __mul__
 
     @property
     def transposed(self):
